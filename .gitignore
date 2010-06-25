@@ -1,0 +1,14 @@
+.idea
+*.iml
+bin
+*~
+gen
+target/
+lib_managed/
+src_managed/
+project/boot/
+project/plugins/project
+R.java
+.classpath
+.project
+.scala_dependencies
