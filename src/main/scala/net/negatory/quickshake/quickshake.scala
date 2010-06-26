@@ -17,17 +17,21 @@ object QuickShake {
     options.indirs foreach (info _)
     info("outdir: " + options.outdir)
     info("keepNamespace: " + options.keepNamespace)
+
+    val dataReaders = options.indirs map (_ => new ClassDataReader(_))
+    val dataWriter = new ClassDataWriter(options.outdir)
+    val decider = new KeepClassDecider
   }
 
 }
 
-object ClassRepo {
+object ClassDataReader {
   case object Search
   case class Visit(classData: Array[Byte])
   case object End
 }
 
-class ClassRepo extends Actor {
+class ClassDataReader(dir: String) extends Actor {
   def act() {}
 }
 
@@ -49,6 +53,14 @@ object DependencyScanner {
 }
 
 class DependencyScanner(classData: Array[Byte]) extends Actor {
+  def act() {}
+}
+
+object ClassDataWriter {
+  case class AddClass(classData: Array[Byte])
+}
+
+class ClassDataWriter(dir: String) {
   def act() {}
 }
 
