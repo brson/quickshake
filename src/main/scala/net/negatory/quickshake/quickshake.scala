@@ -2,7 +2,6 @@ package net.negatory.quickshake
 
 import actors.Actor
 import actors.Actor._
-import org.objectweb.asm._
 
 object QuickShake {
 
