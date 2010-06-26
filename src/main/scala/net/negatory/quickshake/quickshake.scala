@@ -20,10 +20,36 @@ object QuickShake {
 
     val dataReaders = options.indirs map {(dir: String) => (new ClassDataReader(dir) with logger.Mixin).start}
     val dataWriter = (new ClassDataWriter(options.outdir) with logger.Mixin).start
-    val decider = (new KeepClassDecider with logger.Mixin).start
+    val decider = (new KeepClassDecider(options.keepNamespace) with logger.Mixin).start
 
-    dataReaders foreach { (indir) =>
+    def decode(classData: Array[Byte]) {
+      import ClassDecoder._
+      val decoder = (new ClassDecoder(classData) with logger.Mixin).start
+      actor {
+        decoder ! Decode
+        loop {
+          react {
+            case Name(className) => ()
+            case Dependency(className) => ()
+            case End => exit
+          }
+        }
+      }
     }
+
+    dataReaders foreach {
+      import ClassDataReader._
+      (reader) => actor {
+        reader ! Search
+        loop {
+          react {
+            case Visit(classData) => decode (classData)
+            case End => exit
+          }
+        }
+      }
+    }
+
   }
 
 }
@@ -36,7 +62,29 @@ object ClassDataReader {
 
 class ClassDataReader(dir: String) extends Actor {
   self: Logger =>
-  def act() {}
+  def act() {
+    import ClassDataReader._
+    react {
+      case Search => reply(End); exit
+    }
+  }
+}
+
+object ClassDecoder {
+  case object Decode
+  case class Name(className: String)
+  case class Dependency(className: String)
+  case object End
+}
+
+class ClassDecoder(classData: Array[Byte]) extends Actor {
+  self: Logger =>
+  def act() {
+    import ClassDecoder._
+    react {
+      case Decode => reply(End); exit
+    }
+  }
 }
 
 object KeepClassDecider {
@@ -46,18 +94,7 @@ object KeepClassDecider {
   case object Discarded
 }
 
-class KeepClassDecider extends Actor {
-  self: Logger =>
-  def act() {}
-}
-
-object DependencyScanner {
-  case object Scan
-  case class DependencyFound(className: String)
-  case object End
-}
-
-class DependencyScanner(classData: Array[Byte]) extends Actor {
+class KeepClassDecider(keepNamespace: String) extends Actor {
   self: Logger =>
   def act() {}
 }
