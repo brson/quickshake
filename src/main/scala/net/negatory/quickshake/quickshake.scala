@@ -18,9 +18,12 @@ object QuickShake {
     info("outdir: " + options.outdir)
     info("keepNamespace: " + options.keepNamespace)
 
-    val dataReaders = options.indirs map {(dir: String) => new ClassDataReader(dir) with logger.Mixin}
-    val dataWriter = new ClassDataWriter(options.outdir) with logger.Mixin
-    val decider = new KeepClassDecider with logger.Mixin
+    val dataReaders = options.indirs map {(dir: String) => (new ClassDataReader(dir) with logger.Mixin).start}
+    val dataWriter = (new ClassDataWriter(options.outdir) with logger.Mixin).start
+    val decider = (new KeepClassDecider with logger.Mixin).start
+
+    dataReaders foreach { (indir) =>
+    }
   }
 
 }
@@ -63,7 +66,7 @@ object ClassDataWriter {
   case class AddClass(classData: Array[Byte])
 }
 
-class ClassDataWriter(dir: String) {
+class ClassDataWriter(dir: String) extends Actor {
   self: Logger =>
   def act() {}
 }
@@ -86,7 +89,7 @@ trait Logger {
  
   trait Mixin extends Logger {
     val minLogLevel = Logger.this.minLogLevel
-    override def log(level: LogLevel, msg: String) = Logger.this.log(level, msg)
+    def log(level: LogLevel, msg: String) = Logger.this.log(level, msg)
   }
 
   val minLogLevel: LogLevel
@@ -103,9 +106,9 @@ import LogLevel.LogLevel
 
 class ConsoleLogger extends Logger {
 
-  override val minLogLevel = LogLevel.Debug
+  val minLogLevel = LogLevel.Debug
 
-  override def log(level: LogLevel, msg: String) {
+  def log(level: LogLevel, msg: String) {
     println(level.toString + ": " + msg)
   }
 
