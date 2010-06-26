@@ -85,14 +85,15 @@ class ClassDataReader(private val root: String) extends Actor {
   private def allClassFiles(root: String): List[String] = {
     new DirectoryWalker {
       protected[this] override def handleFile(file: File, depth: Int, results: java.util.Collection[_]): Unit = {
-	if (file.getName.endsWith(".class")) results.asInstanceOf[java.util.Collection[String]].add(file.getAbsolutePath)
+	import java.util.Collection
+	if (file.getName.endsWith(".class")) results.asInstanceOf[Collection[String]].add(file.getAbsolutePath)
       }
       def findClassFiles() = {
 	val classFiles = new java.util.ArrayList[String]
 	walk (new File(root), classFiles)
 	import collection.JavaConversions._
-	val classFilesList: Iterable[String] = classFiles 
-	classFilesList.toList
+	val classFilesIter: Iterable[String] = classFiles 
+	classFilesIter.toList
       }
     }.findClassFiles
   }
