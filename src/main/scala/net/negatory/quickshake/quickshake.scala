@@ -102,11 +102,11 @@ trait Logger {
   def log(level: LogLevel, msg: String)
 }
 
-import LogLevel.LogLevel
-
 class ConsoleLogger extends Logger {
 
-  val minLogLevel = LogLevel.Debug
+  import LogLevel._
+
+  val minLogLevel = Debug
 
   def log(level: LogLevel, msg: String) {
     println(level.toString + ": " + msg)
