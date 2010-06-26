@@ -18,9 +18,9 @@ object QuickShake {
     info("outdir: " + options.outdir)
     info("keepNamespace: " + options.keepNamespace)
 
-    val dataReaders = options.indirs map (_ => new ClassDataReader(_))
-    val dataWriter = new ClassDataWriter(options.outdir)
-    val decider = new KeepClassDecider
+    val dataReaders = options.indirs map {(dir: String) => new ClassDataReader(dir) with logger.Mixin}
+    val dataWriter = new ClassDataWriter(options.outdir) with logger.Mixin
+    val decider = new KeepClassDecider with logger.Mixin
   }
 
 }
@@ -31,7 +31,7 @@ object ClassDataReader {
   case object End
 }
 
-class ClassDataReader(dir: String) extends Actor {
+class ClassDataReader(dir: String) extends Actor { self: Logger =>
   def act() {}
 }
 
@@ -42,7 +42,7 @@ object KeepClassDecider {
   case object Discarded
 }
 
-class KeepClassDecider extends Actor {
+class KeepClassDecider extends Actor { self: Logger =>
   def act() {}
 }
 
@@ -52,7 +52,7 @@ object DependencyScanner {
   case object End
 }
 
-class DependencyScanner(classData: Array[Byte]) extends Actor {
+class DependencyScanner(classData: Array[Byte]) extends Actor { self: Logger =>
   def act() {}
 }
 
@@ -60,7 +60,7 @@ object ClassDataWriter {
   case class AddClass(classData: Array[Byte])
 }
 
-class ClassDataWriter(dir: String) {
+class ClassDataWriter(dir: String) { self: Logger =>
   def act() {}
 }
 
@@ -79,6 +79,11 @@ object LogLevel extends Enumeration {
 trait Logger {
 
   import LogLevel._
+ 
+  trait Mixin extends Logger {
+    val minLogLevel = Logger.this.minLogLevel
+    override def log(level: LogLevel, msg: String) = Logger.this.log(level, msg)
+  }
 
   val minLogLevel: LogLevel
 
@@ -87,7 +92,7 @@ trait Logger {
   def warning(msg: String): Unit = log(Warning, msg)
   def error(msg: String): Unit = log(Error, msg)
 
-  protected[this] def log(level: LogLevel, msg: String)
+  def log(level: LogLevel, msg: String)
 }
 
 import LogLevel.LogLevel
@@ -96,7 +101,7 @@ class ConsoleLogger extends Logger {
 
   override val minLogLevel = LogLevel.Debug
 
-  protected[this] override def log(level: LogLevel, msg: String) {
+  override def log(level: LogLevel, msg: String) {
     println(level.toString + ": " + msg)
   }
 
