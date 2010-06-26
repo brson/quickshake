@@ -1,5 +1,7 @@
 package net.negatory.quickshake
 
+import actors.Actor
+import actors.Actor._
 import org.objectweb.asm._
 
 object QuickShake {
@@ -17,6 +19,37 @@ object QuickShake {
     info("keepNamespace: " + options.keepNamespace)
   }
 
+}
+
+object ClassRepo {
+  case object Search
+  case class Visit(classData: Array[Byte])
+  case object End
+}
+
+class ClassRepo extends Actor {
+  def act() {}
+}
+
+object KeepClassDecider {
+  case class Keep(className: String)
+  case class Decide(className: String)
+  case object Kept
+  case object Discarded
+}
+
+class KeepClassDecider extends Actor {
+  def act() {}
+}
+
+object DependencyScanner {
+  case object Scan
+  case class DependencyFound(className: String)
+  case object End
+}
+
+class DependencyScanner(classData: Array[Byte]) extends Actor {
+  def act() {}
 }
 
 class Options(args: Array[String]) {
