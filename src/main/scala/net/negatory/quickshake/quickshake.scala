@@ -7,10 +7,10 @@ object QuickShake {
 
   def main(args: Array[String]) {
 
-    val logger = new ConsoleLogger
+    val options = new Options(args)
+    val logger = new ConsoleLogger(options.logLevel)
     import logger._
 
-    val options = new Options(args)
 
     info("indirs: ")
     options.indirs foreach (info _)
@@ -151,6 +151,12 @@ class Options(args: Array[String]) {
   val indirs = args(0) split ":"
   val outdir = args(1)
   val keepNamespace = args(2)
+  val logLevel = args(3) match {
+    case "debug" => LogLevel.Debug
+    case "info" => LogLevel.Info
+    case "warning" => LogLevel.Warning
+    case "error" => LogLevel.Error
+  }
 }
 
 object LogLevel extends Enumeration {
@@ -158,10 +164,10 @@ object LogLevel extends Enumeration {
   val Debug, Info, Warning, Error = Value
 }
 
+import LogLevel._
+ 
 trait Logger {
 
-  import LogLevel._
- 
   trait Mixin extends Logger {
     val minLogLevel = Logger.this.minLogLevel
     def log(level: LogLevel, msg: String) = Logger.this.log(level, msg)
@@ -169,19 +175,19 @@ trait Logger {
 
   val minLogLevel: LogLevel
 
-  def debug(msg: String): Unit = log(Debug, msg)
-  def info(msg: String): Unit = log(Info, msg)
-  def warning(msg: String): Unit = log(Warning, msg)
-  def error(msg: String): Unit = log(Error, msg)
+  def debug(msg: String): Unit = trylog(Debug, msg)
+  def info(msg: String): Unit = trylog(Info, msg)
+  def warning(msg: String): Unit = trylog(Warning, msg)
+  def error(msg: String): Unit = trylog(Error, msg)
+
+  def trylog(level: LogLevel, msg: String) {
+    if (level >= minLogLevel) log(level, msg)
+  }
 
   def log(level: LogLevel, msg: String)
 }
 
-class ConsoleLogger extends Logger {
-
-  import LogLevel._
-
-  val minLogLevel = Debug
+class ConsoleLogger(val minLogLevel: LogLevel) extends Logger {
 
   def log(level: LogLevel, msg: String) {
     println(level.toString + ": " + msg)
