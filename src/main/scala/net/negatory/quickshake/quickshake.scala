@@ -59,12 +59,51 @@ object ClassDataReader {
   case object End
 }
 
-class ClassDataReader(dir: String) extends Actor {
+class ClassDataReader(private val root: String) extends Actor {
   self: Logger =>
+
+  import org.apache.commons.io.IOUtils.toByteArray
+  import org.apache.commons.io.DirectoryWalker
+  import java.io.{File, FileInputStream}
+  import ClassDataReader._
+
   def act() {
-    import ClassDataReader._
     react {
-      case Search => reply(End); exit
+      case Search => search()
+    }
+  }
+
+  private def search() {
+    debug("Searching for class files in " + root)
+    for (classFile <- allClassFiles(root)) {
+      debug("Found " + classFile)
+      reply(Visit(loadClassData(classFile)))
+    }
+    reply(End)
+  }
+
+  private def allClassFiles(root: String): List[String] = {
+    new DirectoryWalker {
+      protected[this] override def handleFile(file: File, depth: Int, results: java.util.Collection[_]): Unit = {
+	if (file.getName.endsWith(".class")) results.asInstanceOf[java.util.Collection[String]].add(file.getAbsolutePath)
+      }
+      def findClassFiles() = {
+	val classFiles = new java.util.ArrayList[String]
+	walk (new File(root), classFiles)
+	import collection.JavaConversions._
+	val classFilesList: Iterable[String] = classFiles 
+	classFilesList.toList
+      }
+    }.findClassFiles
+  }
+
+  private def loadClassData(file: String): Array[Byte] = {
+    val stream = new FileInputStream(file)
+    try {
+      toByteArray(stream)
+    }
+    finally {
+      stream.close
     }
   }
 }
