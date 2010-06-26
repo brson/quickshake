@@ -31,7 +31,8 @@ object ClassDataReader {
   case object End
 }
 
-class ClassDataReader(dir: String) extends Actor { self: Logger =>
+class ClassDataReader(dir: String) extends Actor {
+  self: Logger =>
   def act() {}
 }
 
@@ -42,7 +43,8 @@ object KeepClassDecider {
   case object Discarded
 }
 
-class KeepClassDecider extends Actor { self: Logger =>
+class KeepClassDecider extends Actor {
+  self: Logger =>
   def act() {}
 }
 
@@ -52,7 +54,8 @@ object DependencyScanner {
   case object End
 }
 
-class DependencyScanner(classData: Array[Byte]) extends Actor { self: Logger =>
+class DependencyScanner(classData: Array[Byte]) extends Actor {
+  self: Logger =>
   def act() {}
 }
 
@@ -60,7 +63,8 @@ object ClassDataWriter {
   case class AddClass(classData: Array[Byte])
 }
 
-class ClassDataWriter(dir: String) { self: Logger =>
+class ClassDataWriter(dir: String) {
+  self: Logger =>
   def act() {}
 }
 
