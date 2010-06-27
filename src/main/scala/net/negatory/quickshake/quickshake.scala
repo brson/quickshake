@@ -195,6 +195,7 @@ import LogLevel._
  
 trait Logger {
 
+  // Allows creation of a single logger, then mixing in the instance's Mixin trait
   trait Mixin extends Logger {
     val minLogLevel = Logger.this.minLogLevel
     def log(level: LogLevel, msg: String) = Logger.this.log(level, msg)
@@ -221,3 +222,4 @@ class ConsoleLogger(val minLogLevel: LogLevel) extends Logger {
   }
 
 }
+
