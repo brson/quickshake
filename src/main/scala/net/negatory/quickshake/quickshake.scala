@@ -9,22 +9,23 @@ object QuickShake {
 
     val options = new Options(args)
     val logger = new ConsoleLogger(options.logLevel)
-    import logger._
+    import logger.LoggerMixin
+    val tracker = new ActorTracker with LoggerMixin
+    import tracker.TrackerMixin
 
+    logger.info("indirs: ")
+    options.indirs foreach (logger.info _)
+    logger.info("outdir: " + options.outdir)
+    logger.info("keepNamespace: " + options.keepNamespace)
 
-    info("indirs: ")
-    options.indirs foreach (info _)
-    info("outdir: " + options.outdir)
-    info("keepNamespace: " + options.keepNamespace)
-
-    val dataReaders = options.indirs map {(dir: String) => (new ClassDataReader(dir) with logger.Mixin).start}
-    val dataWriter = (new ClassDataWriter(options.outdir) with logger.Mixin).start
-    val decider = (new KeepClassDecider(options.keepNamespace) with logger.Mixin).start
+    val dataReaders = options.indirs map {(dir: String) => (new ClassDataReader(dir) with LoggerMixin with TrackerMixin).start}
+    val dataWriter = (new ClassDataWriter(options.outdir) with LoggerMixin with TrackerMixin).start
+    val decider = (new KeepClassDecider(options.keepNamespace) with LoggerMixin).start
 
     def decode(classData: Array[Byte]) {
       import ClassDecoder._
-      val decoder = (new ClassDecoder(classData) with logger.Mixin).start
-      actor {
+      val decoder = (new ClassDecoder(classData) with LoggerMixin with TrackerMixin).start
+      new Actor with TrackerMixin { def act() {
         decoder ! GetName
         react {
           case Name(className) =>
@@ -47,12 +48,12 @@ object QuickShake {
 		exit
 	    }
         }
-      }
+      }}.start()
     }
 
     dataReaders foreach {
       import ClassDataReader._
-      (reader) => actor {
+      (reader) => new Actor with TrackerMixin { def act() {
         reader ! Search
         loop {
           react {
@@ -60,9 +61,12 @@ object QuickShake {
             case End => exit
           }
         }
-      }
+      }}.start()
     }
 
+    tracker.waitForActors
+    logger.debug("All actors done")
+    decider ! KeepClassDecider.End
   }
 
 }
@@ -149,6 +153,7 @@ object KeepClassDecider {
   case class Decide(className: String)
   case object Kept
   case object Discarded
+  case object End
 }
 
 class KeepClassDecider(keepNamespace: String) extends Actor {
@@ -159,6 +164,9 @@ class KeepClassDecider(keepNamespace: String) extends Actor {
       react {
 	case Keep(_) => 
 	case Decide(_) => reply(Discarded)
+	case End => 
+	  debug("Decider exiting")
+	  exit
       }
     }
   }
@@ -196,7 +204,7 @@ import LogLevel._
 trait Logger {
 
   // Allows creation of a single logger, then mixing in the instance's Mixin trait
-  trait Mixin extends Logger {
+  trait LoggerMixin extends Logger {
     val minLogLevel = Logger.this.minLogLevel
     def log(level: LogLevel, msg: String) = Logger.this.log(level, msg)
   }
@@ -223,3 +231,64 @@ class ConsoleLogger(val minLogLevel: LogLevel) extends Logger {
 
 }
 
+object ActorTracker {
+  private[ActorTracker] case class Register(actor: Actor)
+  private[ActorTracker] case class Unregister(actor: Actor)
+  private[ActorTracker] case object End
+}
+
+class ActorTracker {
+  self: Logger =>
+
+  import ActorTracker._
+  import concurrent.SyncVar
+
+  private val sync = new SyncVar[Unit]
+
+  private val registrar = actor {
+    var counter = 0
+    loop {
+      react {
+	case Register(actor) =>
+	  debug("Registering actor " + actor.toString)
+	  counter += 1
+	case Unregister(actor) =>
+	  debug("Unregistering actor " + actor.toString)
+	  counter -= 1
+	  if (counter == 0) {
+	    sync.set(Unit)
+	    exit
+	  }
+      }
+    }
+  }
+
+  trait TrackerMixin extends Actor {
+    type TrackerMixin = ActorTracker.this.TrackerMixin
+    abstract override def start(): Actor = {
+      registrar ! Register(this)
+      super.start()
+    }
+    abstract override def exit(): Nothing = {
+      registrar ! Unregister(this)
+      super.exit()
+    }
+  }
+
+  // This is the first actor registered, and it is unregistered once
+  // the caller wait's for actors. Should prevent the possibility of
+  // the actor count reaching 0 before all actors have been started.
+  val initBlocker = new Actor with TrackerMixin {
+
+    def act() {
+      react {
+	case End => exit
+      }
+    }
+  }
+
+  def waitForActors() = {
+    initBlocker ! End
+    sync.get
+  }
+}
