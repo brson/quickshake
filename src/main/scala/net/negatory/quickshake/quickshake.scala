@@ -25,13 +25,27 @@ object QuickShake {
       import ClassDecoder._
       val decoder = (new ClassDecoder(classData) with logger.Mixin).start
       actor {
-        decoder ! Decode
-        loop {
-          react {
-            case Name(className) => ()
-            case Dependency(className) => ()
-            case End => exit
-          }
+        decoder ! GetName
+        react {
+          case Name(className) =>
+	    logger.debug("Decoded name of class " + className)
+	    import KeepClassDecider._
+	    decider ! Decide(className)
+	    react {
+	      case Kept =>
+		logger.debug("Keeping " + className)
+		decoder ! FindDependencies
+		loop {
+		  react {
+		    case Dependency(depName) => decider ! Keep(depName)
+		    case End => exit
+		  }
+		}
+	      case Discarded => 
+		logger.debug("Discarding " + className)
+	        decoder ! Discard
+		exit
+	    }
         }
       }
     }
@@ -110,8 +124,10 @@ class ClassDataReader(private val root: String) extends Actor {
 }
 
 object ClassDecoder {
-  case object Decode
+  case object GetName
   case class Name(className: String)
+  case object Discard
+  case object FindDependencies
   case class Dependency(className: String)
   case object End
 }
@@ -121,7 +137,9 @@ class ClassDecoder(classData: Array[Byte]) extends Actor {
   def act() {
     import ClassDecoder._
     react {
-      case Decode => reply(End); exit
+      case GetName => reply(Name("test"))
+      case Discard => exit
+      case FindDependencies => reply(End); exit
     }
   }
 }
@@ -135,7 +153,15 @@ object KeepClassDecider {
 
 class KeepClassDecider(keepNamespace: String) extends Actor {
   self: Logger =>
-  def act() {}
+  def act() {
+    import KeepClassDecider._
+    loop {
+      react {
+	case Keep(_) => 
+	case Decide(_) => reply(Discarded)
+      }
+    }
+  }
 }
 
 object ClassDataWriter {
