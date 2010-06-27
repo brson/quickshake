@@ -14,7 +14,7 @@ object QuickShake {
     import tracker.TrackerMixin
 
     logger.info("indirs: ")
-    options.indirs foreach (logger.info _)
+    options.indirs foreach (dir => logger.info(dir))
     logger.info("outdir: " + options.outdir)
     logger.info("keepNamespace: " + options.keepNamespace)
 
@@ -211,12 +211,12 @@ trait Logger {
 
   val minLogLevel: LogLevel
 
-  def debug(msg: String): Unit = trylog(Debug, msg)
-  def info(msg: String): Unit = trylog(Info, msg)
-  def warning(msg: String): Unit = trylog(Warning, msg)
-  def error(msg: String): Unit = trylog(Error, msg)
+  def debug(msg: => String): Unit = trylog(Debug, msg)
+  def info(msg: => String): Unit = trylog(Info, msg)
+  def warning(msg: => String): Unit = trylog(Warning, msg)
+  def error(msg: => String): Unit = trylog(Error, msg)
 
-  def trylog(level: LogLevel, msg: String) {
+  def trylog(level: LogLevel, msg: => String) {
     if (level >= minLogLevel) log(level, msg)
   }
 
