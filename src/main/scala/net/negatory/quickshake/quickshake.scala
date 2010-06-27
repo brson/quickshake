@@ -26,9 +26,12 @@ object QuickShake {
       def act() = body
     }.start
 
+    // TODO: Switch to a ThreadPoolRunner
+    val taskRunner = new scala.concurrent.ThreadRunner
+
     def decode(classData: Array[Byte]) {
       import ClassDecoder._
-      val decoder = (new ClassDecoder(classData) with LoggerMixin with TrackerMixin).start
+      val decoder = (new ClassDecoder(classData, taskRunner) with LoggerMixin with TrackerMixin).start
       trackedActor {
         decoder ! GetName
         react {
@@ -148,7 +151,9 @@ class KeepClassDecider(keepNamespace: String) extends Actor {
     loop {
       react {
 	case Keep(_) => 
-	case Decide(_) => reply(Discarded)
+	case Decide(className) => 
+	  debug("Deciding whether to keep " + className)
+	  reply(Discarded)
 	case End => 
 	  debug("Decider exiting")
 	  exit
