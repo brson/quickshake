@@ -22,10 +22,15 @@ object QuickShake {
     val dataWriter = (new ClassDataWriter(options.outdir) with LoggerMixin with TrackerMixin).start
     val decider = (new KeepClassDecider(options.keepNamespace) with LoggerMixin).start
 
+    def trackedActor(body: => Unit) = new Actor with TrackerMixin {
+      def act() = body
+      start
+    }
+
     def decode(classData: Array[Byte]) {
       import ClassDecoder._
       val decoder = (new ClassDecoder(classData) with LoggerMixin with TrackerMixin).start
-      new Actor with TrackerMixin { def act() {
+      trackedActor {
         decoder ! GetName
         react {
           case Name(className) =>
@@ -48,12 +53,12 @@ object QuickShake {
 		exit
 	    }
         }
-      }}.start()
+      }
     }
 
     dataReaders foreach {
       import ClassDataReader._
-      (reader) => new Actor with TrackerMixin { def act() {
+      (reader) => trackedActor {
         reader ! Search
         loop {
           react {
@@ -61,7 +66,7 @@ object QuickShake {
             case End => exit
           }
         }
-      }}.start()
+      }
     }
 
     tracker.waitForActors
