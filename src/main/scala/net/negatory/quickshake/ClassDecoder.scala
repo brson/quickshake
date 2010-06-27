@@ -21,6 +21,7 @@ class ClassDecoder(private val classData: Array[Byte], private val runner: TaskR
     import org.objectweb.asm.commons.EmptyVisitor
     import ClassDecoder._
     import concurrent.SyncChannel
+    import runtime.NonLocalReturnControl
 
     val channel = new SyncChannel[Any]
     val decoder = self
@@ -36,7 +37,9 @@ class ClassDecoder(private val classData: Array[Byte], private val runner: TaskR
 
 	channel.write(Name(name))
 	channel.read match {
-	  case Discard => Unit
+	  case Discard => 
+	    // Short-circuit the rest of the visit for speed
+	    throw new NonLocalReturnControl(Unit, Unit)
 	  case FindDependencies => decoder ! End
 	}
       }
@@ -44,8 +47,12 @@ class ClassDecoder(private val classData: Array[Byte], private val runner: TaskR
 
     val task = () => {
       val reader = new ClassReader(classData)
-      // TODO: Are there better flags?
-      reader.accept(visitor, 0)
+      try {
+	// TODO: Are there better flags?
+	reader.accept(visitor, 0)
+      } catch {
+	case _: NonLocalReturnControl[_] =>
+      }
     }
 
     import runner.functionAsTask
