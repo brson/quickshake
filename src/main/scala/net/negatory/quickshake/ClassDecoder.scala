@@ -52,7 +52,7 @@ class ClassDecoder(private val classData: Array[Byte], private val runner: TaskR
 
 	private def reportDependency(depName: String) = filterDependency(depName) match {
 	  case Some(d) =>
-	    debug("Reporting dependency " + depName)
+	    debug("Reporting dependency " + d)
 	    decoder ! Dependency(d)
 	  case None => Unit
 	}
