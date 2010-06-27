@@ -19,16 +19,33 @@ class KeepClassDecider(private val keepNamespace: String) extends Actor {
   def act() {
     loop {
       react {
-	case Keep(_) => 
-	case Decide(className) => reply(decide(className))
+	case Keep(className) => keep(className)
+	case Decide(className) => decide(className, sender)
 	case End => 
+	  drainRequesters()
 	  debug("Decider exiting")
 	  exit
       }
     }
   }
+
+  import collection.mutable.{HashSet, HashMap}
+  import actors.OutputChannel
+
+  private val keepSet = new HashSet[String]
+  private val requesterMap = new HashMap[String, OutputChannel[Any]]
   
-  private def decide(className: String): Any = {
+  private def keep(className: String) {
+    keepSet.add(className)
+
+    // See if somebody was looking for this class
+    requesterMap remove className match {
+      case Some(requester) => requester ! Kept
+      case None => Unit
+    }
+  }
+
+  private def decide(className: String, requester: OutputChannel[Any]) {
 
     debug("Deciding whether to keep " + className)
 
@@ -41,7 +58,20 @@ class KeepClassDecider(private val keepNamespace: String) extends Actor {
     val internalishNamespace = withInternalSeparators(keepNamespace)
     debug("Comparing " + className + " to " + internalishNamespace)
 
-    if (className contains internalishNamespace) Kept
-    else Discarded
+    // Check if this is in a preserved namespace
+    if (className contains internalishNamespace) requester ! Kept
+    // Check if we've already been told to keep it
+    else if (keepSet contains className) requester ! Kept
+    // Hold on to it for later
+    else requesterMap put (className, requester)
   }
+
+  private def drainRequesters() {
+    debug("Discarding remaining class keep decisions")
+    for (Pair(_, requester) <- requesterMap) {
+      requester ! Discarded
+    }
+    requesterMap.clear()
+  }
+
 }
