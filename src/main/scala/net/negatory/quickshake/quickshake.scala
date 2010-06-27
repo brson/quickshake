@@ -19,13 +19,12 @@ object QuickShake {
     logger.info("keepNamespace: " + options.keepNamespace)
 
     val dataReaders = options.indirs map {(dir: String) => (new ClassDataReader(dir) with LoggerMixin with TrackerMixin).start}
-    val dataWriter = (new ClassDataWriter(options.outdir) with LoggerMixin with TrackerMixin).start
+    val dataWriter = (new ClassDataWriter(options.outdir) with LoggerMixin).start
     val decider = (new KeepClassDecider(options.keepNamespace) with LoggerMixin).start
 
     def trackedActor(body: => Unit) = new Actor with TrackerMixin {
       def act() = body
-      start
-    }
+    }.start
 
     def decode(classData: Array[Byte]) {
       import ClassDecoder._
@@ -41,6 +40,7 @@ object QuickShake {
 	      case Kept =>
 		logger.debug("Keeping " + className)
 		decoder ! FindDependencies
+	        dataWriter ! ClassDataWriter.AddClass(className, classData)
 		loop {
 		  react {
 		    case Dependency(depName) => decider ! Keep(depName)
@@ -72,6 +72,7 @@ object QuickShake {
     tracker.waitForActors
     logger.debug("All actors done")
     decider ! KeepClassDecider.End
+    dataWriter ! ClassDataWriter.End
   }
 
 }
@@ -157,12 +158,21 @@ class KeepClassDecider(keepNamespace: String) extends Actor {
 }
 
 object ClassDataWriter {
-  case class AddClass(classData: Array[Byte])
+  case class AddClass(className: String, classData: Array[Byte])
+  case object End
 }
 
 class ClassDataWriter(dir: String) extends Actor {
   self: Logger =>
-  def act() {}
+  def act() {
+    import ClassDataWriter._
+    loop {
+      react {
+	case AddClass(className, classData) => Unit
+	case End => exit
+      }
+    }
+  }
 }
 
 class Options(args: Array[String]) {
