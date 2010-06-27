@@ -50,17 +50,9 @@ class ClassDecoder(private val classData: Array[Byte], private val runner: TaskR
 
 	override def visitEnd() = decoder ! End
 
-	private def reportDependency(depName: String) = filterDependency(depName) match {
-	  case Some(d) =>
-	    debug("Reporting dependency " + d)
-	    decoder ! Dependency(d)
-	  case None => Unit
-	}
+	private def reportDependency(depName: String) = decoder ! Dependency(depName)
 
 	private def reportDependencies(depNames: Array[String]) = depNames foreach { reportDependency(_) }
-
-	// Placeholder for some kind of blacklist to limit traffic
-	private def filterDependency(depName: String): Option[String] = Some(depName)
       }
 
       val reader = new ClassReader(classData)
