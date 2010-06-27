@@ -30,29 +30,27 @@ object QuickShake {
     val taskRunner = new scala.concurrent.ThreadRunner
 
     def decode(classData: Array[Byte]) {
-      import ClassDecoder._
       val decoder = (new ClassDecoder(classData, taskRunner) with LoggerMixin with TrackerMixin).start
       trackedActor {
-        decoder ! GetName
+        decoder ! ClassDecoder.GetName
         react {
-          case Name(className) =>
+          case ClassDecoder.Name(className) =>
 	    logger.debug("Decoded name of class " + className)
-	    import KeepClassDecider._
-	    decider ! Decide(className)
+	    decider ! KeepClassDecider.Decide(className)
 	    react {
-	      case Kept =>
+	      case KeepClassDecider.Kept =>
 		logger.debug("Keeping " + className)
-		decoder ! FindDependencies
+		decoder ! ClassDecoder.FindDependencies
 	        dataWriter ! ClassDataWriter.AddClass(className, classData)
 		loop {
 		  react {
-		    case Dependency(depName) => decider ! Keep(depName)
+		    case ClassDecoder.Dependency(depName) => decider ! KeepClassDecider.Keep(depName)
 		    case ClassDecoder.End => exit
 		  }
 		}
-	      case Discarded => 
+	      case KeepClassDecider.Discarded => 
 		logger.debug("Discarding " + className)
-	        decoder ! Discard
+	        decoder ! ClassDecoder.Discard
 		exit
 	    }
         }
@@ -60,13 +58,12 @@ object QuickShake {
     }
 
     dataReaders foreach {
-      import ClassDataReader._
       (reader) => trackedActor {
-        reader ! Search
+        reader ! ClassDataReader.Search
         loop {
           react {
-            case Visit(classData) => decode (classData)
-            case End => exit
+            case ClassDataReader.Visit(classData) => decode (classData)
+            case ClassDataReader.End => exit
           }
         }
       }
