@@ -7,6 +7,7 @@ object KeepClassDecider {
   case class Keep(className: String)
   case class Decide(className: String)
   case object Kept
+  case object Waiting
   case object Discarded
   case object End
 }
@@ -63,7 +64,10 @@ class KeepClassDecider(private val keepNamespace: String) extends Actor {
     // Check if we've already been told to keep it
     else if (keepSet contains className) requester ! Kept
     // Hold on to it for later
-    else requesterMap put (className, requester)
+    else {
+      requester ! Waiting
+      requesterMap put (className, requester)
+    }
   }
 
   private def drainRequesters() {

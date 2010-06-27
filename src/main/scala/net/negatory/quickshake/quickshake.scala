@@ -24,34 +24,43 @@ object QuickShake {
 
     def trackedActor(body: => Unit) = new Actor with TrackerMixin {
       def act() = body
-    }.start
+      start()
+    }
 
     // TODO: Switch to a ThreadPoolRunner
     val taskRunner = new scala.concurrent.ThreadRunner
 
     def decode(classData: Array[Byte]) {
-      val decoder = (new ClassDecoder(classData, taskRunner) with LoggerMixin with TrackerMixin).start
+      val decoder = new ClassDecoder(classData, taskRunner) with LoggerMixin with TrackerMixin
+      decoder.start
       trackedActor {
         decoder ! ClassDecoder.GetName
         react {
           case ClassDecoder.Name(className) =>
 	    logger.debug("Decoded name of class " + className)
 	    decider ! KeepClassDecider.Decide(className)
-	    react {
-	      case KeepClassDecider.Kept =>
-		logger.debug("Keeping " + className)
-		decoder ! ClassDecoder.FindDependencies
-	        dataWriter ! ClassDataWriter.AddClass(className, classData)
-		loop {
-		  react {
-		    case ClassDecoder.Dependency(depName) => decider ! KeepClassDecider.Keep(depName)
-		    case ClassDecoder.End => exit
+	    loop {
+	      react {
+		case KeepClassDecider.Waiting =>
+		  logger.debug("Waiting on "  + decider)
+		  logger.debug("Stop tracking " + self + " & " + decoder)
+		  decoder.stopTracking
+		  (self.asInstanceOf[TrackerMixin]).stopTracking
+		case KeepClassDecider.Kept =>
+		  logger.debug("Keeping " + className)
+		  decoder ! ClassDecoder.FindDependencies
+	          dataWriter ! ClassDataWriter.AddClass(className, classData)
+		  loop {
+		    react {
+		      case ClassDecoder.Dependency(depName) => decider ! KeepClassDecider.Keep(depName)
+		      case ClassDecoder.End => exit
+		    }
 		  }
-		}
-	      case KeepClassDecider.Discarded => 
-		logger.debug("Discarding " + className)
-	        decoder ! ClassDecoder.Discard
-		exit
+		case KeepClassDecider.Discarded => 
+		  logger.debug("Discarding " + className)
+	          decoder ! ClassDecoder.Discard
+		  exit
+	      }
 	    }
         }
       }
@@ -241,8 +250,11 @@ class ActorTracker {
       super.start()
     }
     abstract override def exit(): Nothing = {
-      registrar ! Unregister(this)
+      stopTracking()
       super.exit()
+    }
+    def stopTracking() {
+      registrar ! Unregister(this)
     }
   }
 
