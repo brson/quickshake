@@ -40,9 +40,11 @@ class ClassDecoder(private val classData: Array[Byte], private val runner: TaskR
 	  case Discard => 
 	    // Short-circuit the rest of the visit for speed
 	    throw new NonLocalReturnControl(Unit, Unit)
-	  case FindDependencies => decoder ! End
+	  case FindDependencies => Unit
 	}
       }
+
+      override def visitEnd() = decoder ! End
     }
 
     val task = () => {
