@@ -44,6 +44,7 @@ class ClassDecoder(private val classData: Array[Byte], private val runner: TaskR
 	      throw new NonLocalReturnControl(Unit, Unit)
 	    case FindDependencies =>
 	      reportDependency(superName)
+	      reportDependencies(interfaces)
 	  }
 	}
 
@@ -55,6 +56,8 @@ class ClassDecoder(private val classData: Array[Byte], private val runner: TaskR
 	    decoder ! Dependency(d)
 	  case None => Unit
 	}
+
+	private def reportDependencies(depNames: Array[String]) = depNames foreach { reportDependency(_) }
 
 	// Placeholder for some kind of blacklist to limit traffic
 	private def filterDependency(depName: String): Option[String] = Some(depName)
