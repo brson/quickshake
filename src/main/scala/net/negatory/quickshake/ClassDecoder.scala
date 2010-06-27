@@ -60,7 +60,11 @@ class ClassDecoder(private val classData: Array[Byte], private val runner: TaskR
 
     react {
       case GetName =>
-	reply(channel.read)
+	val response = channel.read
+	val className = response match {
+	  case Name(n) => n
+	}
+	reply(response)
 	react {
 	  case Discard => channel.write(Discard)
 	  case FindDependencies =>
@@ -69,7 +73,7 @@ class ClassDecoder(private val classData: Array[Byte], private val runner: TaskR
 	    loop {
 	      react {
 		case dep @ Dependency(_) => client ! dep
-		case End => client ! End
+		case ClassDecoder.End => client ! ClassDecoder.End; exit
 	      }
 	    }
 	}
