@@ -26,28 +26,29 @@ class ClassDecoder(private val classData: Array[Byte], private val runner: TaskR
     val channel = new SyncChannel[Any]
     val decoder = self
     
-    val visitor = new EmptyVisitor {
-      override def visit(
-	version: Int,
-	access: Int,
-	name: String,
-	signature: String,
-	superName: String,
-	interfaces: Array[String]) {
+    val task = () => {
 
-	channel.write(Name(name))
-	channel.read match {
-	  case Discard => 
-	    // Short-circuit the rest of the visit for speed
-	    throw new NonLocalReturnControl(Unit, Unit)
-	  case FindDependencies => Unit
+      val visitor = new EmptyVisitor {
+	override def visit(
+	  version: Int,
+	  access: Int,
+	  name: String,
+	  signature: String,
+	  superName: String,
+	  interfaces: Array[String]) {
+
+	  channel.write(Name(name))
+	  channel.read match {
+	    case Discard => 
+	      // Short-circuit the rest of the visit for speed
+	      throw new NonLocalReturnControl(Unit, Unit)
+	    case FindDependencies =>
+	  }
 	}
+
+	override def visitEnd() = decoder ! End
       }
 
-      override def visitEnd() = decoder ! End
-    }
-
-    val task = () => {
       val reader = new ClassReader(classData)
       try {
 	// TODO: Are there better flags?
