@@ -227,6 +227,7 @@ trait Logger {
 
   val minLogLevel: LogLevel
 
+  // TODO: Consider eliding this method
   def debug(msg: => String): Unit = trylog(Debug, msg)
   def info(msg: => String): Unit = trylog(Info, msg)
   def warning(msg: => String): Unit = trylog(Warning, msg)
