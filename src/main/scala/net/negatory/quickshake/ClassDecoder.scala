@@ -35,7 +35,8 @@ class ClassDecoder(private val classData: Array[Byte], private val runner: TaskR
 	  name: String,
 	  signature: String,
 	  superName: String,
-	  interfaces: Array[String]) {
+	  interfaces: Array[String]
+	) {
 
 	  channel.write(Name(name))
 	  channel.read match {
@@ -46,6 +47,11 @@ class ClassDecoder(private val classData: Array[Byte], private val runner: TaskR
 	      reportDependency(superName)
 	      reportDependencies(interfaces)
 	  }
+	}
+
+	override def visitAnnotation(desc: String, visible: Boolean): AnnotationVisitor = {
+	  reportDependency(desc)
+	  null
 	}
 
 	override def visitEnd() = decoder ! End

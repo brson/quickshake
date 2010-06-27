@@ -17,17 +17,28 @@ class KeepClassDecider(private val keepNamespace: String) extends Actor {
 
   import KeepClassDecider._
 
+  private val cononicalKeepNamespace = cononicalize(keepNamespace)
+
   def act() {
     loop {
       react {
-	case Keep(className) => keep(className)
-	case Decide(className) => decide(className, sender)
+	case Keep(className) => keep(cononicalize(className))
+	case Decide(className) => decide(cononicalize(className), sender)
 	case End => 
 	  drainRequesters()
 	  debug("Decider exiting")
 	  exit
       }
     }
+  }
+
+  private def cononicalize(className: String): String = {
+    val tmp = className map { 
+      (char) =>
+      if (char == '.') '/'
+      else char
+    }
+    "^\\[*L".r replaceFirstIn(tmp, "")
   }
 
   import collection.mutable.{HashSet, HashMap}
@@ -37,6 +48,7 @@ class KeepClassDecider(private val keepNamespace: String) extends Actor {
   private val requesterMap = new HashMap[String, OutputChannel[Any]]
   
   private def keep(className: String) {
+
     keepSet.add(className)
 
     // See if somebody was looking for this class
@@ -50,17 +62,8 @@ class KeepClassDecider(private val keepNamespace: String) extends Actor {
 
     debug("Deciding whether to keep " + className)
 
-    def withInternalSeparators(name: String) = name map { 
-      (char) =>
-      if (char == '.') '/'
-      else char
-    }
-
-    val internalishNamespace = withInternalSeparators(keepNamespace)
-    debug("Comparing " + className + " to " + internalishNamespace)
-
     // Check if this is in a preserved namespace
-    if (className contains internalishNamespace) requester ! Kept
+    if (className contains cononicalKeepNamespace) requester ! Kept
     // Check if we've already been told to keep it
     else if (keepSet contains className) requester ! Kept
     // Hold on to it for later
