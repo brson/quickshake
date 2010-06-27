@@ -43,10 +43,21 @@ class ClassDecoder(private val classData: Array[Byte], private val runner: TaskR
 	      // Short-circuit the rest of the visit for speed
 	      throw new NonLocalReturnControl(Unit, Unit)
 	    case FindDependencies =>
+	      reportDependency(superName)
 	  }
 	}
 
 	override def visitEnd() = decoder ! End
+
+	private def reportDependency(depName: String) = filterDependency(depName) match {
+	  case Some(d) =>
+	    debug("Reporting dependency " + depName)
+	    decoder ! Dependency(d)
+	  case None => Unit
+	}
+
+	// Placeholder for some kind of blacklist to limit traffic
+	private def filterDependency(depName: String): Option[String] = Some(depName)
       }
 
       val reader = new ClassReader(classData)
