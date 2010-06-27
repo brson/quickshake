@@ -187,7 +187,7 @@ class ClassDataWriter(dir: String) extends Actor {
     import ClassDataWriter._
     loop {
       react {
-	case AddClass(className, classData) => Unit
+	case AddClass(className, classData) => debug("Writing " + className)
 	case End => exit
       }
     }
