@@ -76,13 +76,28 @@ class ClassDecoder(
 	  (i: String) => reportDependency(new ClassName(superName))
 	}
       }
-      
+
+      class DecoderAnnotationVisitor extends EmptyVisitor {
+	override def visitEnum(name: String, desc: String, value: String) {
+	  reportDependencies(new Descriptor(desc))
+	}
+
+	override def visitAnnotation(
+	  name: String, desc: String
+	): AnnotationVisitor = {
+	  reportDependencies(new Descriptor(desc))
+	  new DecoderAnnotationVisitor
+	}
+      }
+
       override def visitAnnotation(
 	desc: String,
 	visible: Boolean
       ): AnnotationVisitor = {
+
 	reportDependencies(new Descriptor(desc))
-	null // TODO
+
+	new DecoderAnnotationVisitor
       }
 
       override def visitInnerClass(
@@ -102,7 +117,16 @@ class ClassDecoder(
 	value: Any
       ): FieldVisitor = {
 	reportDependencies(new Descriptor(desc))
-	null // TODO
+	
+	new EmptyVisitor {
+	  override def visitAnnotation(
+	    desc: String,
+	    visible: Boolean
+	  ): AnnotationVisitor = {
+	    reportDependencies(new Descriptor(desc))
+	    new DecoderAnnotationVisitor
+	  }
+	}
       }
 
       override def visitMethod(
