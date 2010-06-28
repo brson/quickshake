@@ -45,20 +45,46 @@ class ClassDecoder(private val classData: Array[Byte], private val runner: TaskR
 	      throw new NonLocalReturnControl(Unit, Unit)
 	    case FindDependencies =>
 	      reportDependency(superName)
-	      reportDependencies(interfaces)
+	      interfaces foreach { reportDependency(_) }
 	  }
 	}
 
 	override def visitAnnotation(desc: String, visible: Boolean): AnnotationVisitor = {
 	  reportDependency(desc)
-	  null
+	  null // TODO: Do I need to visit the annotation?
+	}
+
+	override def visitInnerClass(name: String, outerName: String, innerName: String, access: Int) {
+	  reportDependency(name)
+	}
+
+	override def visitField(
+	  access: Int,
+	  name: String,
+	  desc: String,
+	  signature: String,
+	  value: Any
+	): FieldVisitor = {
+	  reportDependency(desc)
+	  null // TODO
+	}
+
+	override def visitMethod(
+	  access: Int,
+	  name: String,
+	  desc: String,
+	  signature: String,
+	  exceptions: Array[String]
+	): MethodVisitor = {
+	  null // TODO: Need to inspect the code
 	}
 
 	override def visitEnd() = decoder ! End
 
-	private def reportDependency(depName: String) = decoder ! Dependency(depName)
-
-	private def reportDependencies(depNames: Array[String]) = depNames foreach { reportDependency(_) }
+	private def reportDependency(depName: String) {
+	  debug("Reporting dependency " + depName)
+	  decoder ! Dependency(depName)
+	}
       }
 
       val reader = new ClassReader(classData)
