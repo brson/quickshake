@@ -3,6 +3,8 @@ package net.negatory.quickshake
 import actors.Actor
 import actors.Actor._
 
+// TODO: Create a descriptor type to deal with the various representations of classes
+
 object QuickShake {
 
   def main(args: Array[String]) {
