@@ -137,7 +137,9 @@ class ClassDecoder(
 	exceptions: Array[String]
       ): MethodVisitor = {
 	reportDependencies(new Descriptor(desc))
-	// exceptions
+	if (exceptions != null ) {
+	  exceptions foreach { e => reportDependency(new ClassName(e)) }
+	}
 	null // todo
       }
 
