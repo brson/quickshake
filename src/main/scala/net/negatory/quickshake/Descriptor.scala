@@ -7,10 +7,27 @@ object ClassName {
       else char
   }
   def rawIsNotADescriptor(raw: String) = {
-    Descriptor.fieldTypePrefixes forall ((x: Char) => !(raw startsWith x :: Nil))
+    import Descriptor._
+    val noPrefixes = fieldTypePrefixes forall {
+      (x: Char) => !(raw startsWith x :: Nil)
+    }
+    val noMethod = rawIsNotAMethodDescriptor(raw)
+    noPrefixes && noMethod
   }
 }
 
+object Descriptor {
+  val fieldTypePrefixes = "BCDFIJSZL["
+  def withoutTypePrefixes(internalFieldName: String) = {
+    require(rawIsNotAMethodDescriptor(internalFieldName))
+    "^\\[*L".r replaceFirstIn(internalFieldName, "")
+  }
+  def rawIsNotAMethodDescriptor(raw: String) = !(raw startsWith "(")
+}
+
+/**
+ * Represents an internal class name
+ */
 class ClassName(val raw: String) {
 
   import ClassName._
@@ -29,15 +46,15 @@ class ClassName(val raw: String) {
   override def toString() = internalized
 }
 
-object Descriptor {
-  val fieldTypePrefixes = "BCDFIJSZL["
-  def withoutTypePrefixes(internalFieldName: String) = {
-    "^\\[*L".r replaceFirstIn(internalFieldName, "")
-  }
-}
-
+/**
+ * An internal field or method descriptor
+ */
 class Descriptor(val raw: String) {
 
-  val classNames: List[ClassName] = Nil // TODO
+  require(!ClassName.rawIsNotADescriptor(raw))
+
+  val classNames: List[ClassName] = {
+    Nil
+  }
 
 }
