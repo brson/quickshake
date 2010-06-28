@@ -24,6 +24,7 @@ object QuickShake {
     val dataReaders = options.indirs map {(dir: String) => (new ClassDataReader(dir) with LoggerMixin with TrackerMixin).start}
     val dataWriter = (new ClassDataWriter(options.outdir) with LoggerMixin).start
     val decider = (new KeepClassDecider(options.keepNamespaces) with LoggerMixin).start
+    val counter = new ClassCounter().start
 
     def trackedActor(body: => Unit) = new Actor with TrackerMixin {
       def act() = body
@@ -41,6 +42,7 @@ object QuickShake {
         react {
           case ClassDecoder.Name(className) =>
 	    logger.debug("Decoded name of class " + className)
+	    counter ! ClassCounter.Inspected
 	    decider ! KeepClassDecider.Decide(className)
 	    loop {
 	      react {
@@ -51,6 +53,7 @@ object QuickShake {
 		  (self.asInstanceOf[TrackerMixin]).stopTracking
 		case KeepClassDecider.Kept =>
 		  logger.debug("Keeping " + className)
+		  counter ! ClassCounter.Kept
 	          dataWriter ! ClassDataWriter.AddClass(className, classData)
 		  decoder ! ClassDecoder.FindDependencies
 		  loop {
@@ -61,6 +64,7 @@ object QuickShake {
 		  }
 		case KeepClassDecider.Discarded => 
 		  logger.debug("Discarding " + className)
+		  counter ! ClassCounter.Discarded
 	          decoder ! ClassDecoder.Discard
 		  exit
 	      }
@@ -85,6 +89,13 @@ object QuickShake {
     logger.debug("All actors done")
     decider ! KeepClassDecider.End
     dataWriter ! ClassDataWriter.End
+    counter !? ClassCounter.GetResults match {
+      case ClassCounter.Results(inspected, kept, discarded) =>
+	logger.info("Classes inspected: " + inspected)
+	logger.info("Classes kept: " + kept)
+        logger.info("Classed discarded: " + discarded)
+    }
+    
   }
 
 }
@@ -280,5 +291,50 @@ class ActorTracker extends AnyRef with Logging {
   def waitForActors() = {
     initBlocker ! End
     sync.get
+  }
+}
+
+
+object ClassCounter {
+  case object Inspected
+  case object Kept
+  case object Discarded
+  case object GetResults
+  case class Results(inspected: Int, kept: Int, Discarded: Int)
+}
+
+class ClassCounter extends Actor {
+  import ClassCounter._
+
+  var inspected = 0
+  var kept = 0
+  var discarded = 0
+
+  def act() = loop {
+    react {
+      case Inspected => inspected += 1
+      case Kept => kept += 1
+      case Discarded => discarded += 1
+      case GetResults =>
+	val resultRequester = sender
+	def checkResults() = if (kept + discarded == inspected) {
+	  resultRequester ! Results(inspected, kept, discarded)
+	  exit
+	}
+	checkResults()
+	// If we haven't heard back from all the classes we inspected
+	// then keep waiting for the numbers to add up
+	loop { react {
+	  case Inspected =>
+	    inspected += 1
+	    checkResults()
+	  case Kept =>
+	    kept += 1
+	    checkResults()
+	  case Discarded =>
+	    discarded += 1
+	    checkResults()
+	}}
+    }
   }
 }
