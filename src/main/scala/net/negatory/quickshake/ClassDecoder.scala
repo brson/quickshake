@@ -13,8 +13,10 @@ object ClassDecoder {
   case object End
 }
 
-class ClassDecoder(private val classData: Array[Byte], private val runner: TaskRunner) extends Actor {
-  self: Logger =>
+class ClassDecoder(
+  classData: Array[Byte],
+  runner: TaskRunner
+) extends Actor with Logging {
   
   def act() {
     import org.objectweb.asm._

@@ -95,8 +95,7 @@ object ClassDataReader {
   case object End
 }
 
-class ClassDataReader(private val root: String) extends Actor {
-  self: Logger =>
+class ClassDataReader(root: String) extends Actor with Logging {
 
   import org.apache.commons.io.IOUtils.toByteArray
   import org.apache.commons.io.DirectoryWalker
@@ -150,8 +149,7 @@ object ClassDataWriter {
   case object End
 }
 
-class ClassDataWriter(dir: String) extends Actor {
-  self: Logger =>
+class ClassDataWriter(dir: String) extends Actor with Logging {
   def act() {
     import ClassDataWriter._
     loop {
@@ -182,11 +180,18 @@ object LogLevel extends Enumeration {
 }
 
 import LogLevel._
+
+trait Logging {
+  def debug(msg: => String) = Unit
+  def info(msg: => String) = Unit
+  def warning(msg: => String) = Unit
+  def error(msg: => String) = Unit
+}
  
 trait Logger {
 
   // Allows creation of a single logger, then mixing in the instance's Mixin trait
-  trait LoggerMixin extends Logger {
+  trait LoggerMixin extends Logging {
     val minLogLevel = Logger.this.minLogLevel
     def log(level: LogLevel, msg: String) = Logger.this.log(level, msg)
   }
@@ -220,8 +225,7 @@ object ActorTracker {
   private[ActorTracker] case object End
 }
 
-class ActorTracker {
-  self: Logger =>
+class ActorTracker extends AnyRef with Logging {
 
   import ActorTracker._
   import concurrent.SyncVar

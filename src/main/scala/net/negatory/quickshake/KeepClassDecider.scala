@@ -12,8 +12,9 @@ object KeepClassDecider {
   case object End
 }
 
-class KeepClassDecider(private val keepNamespaces: List[String]) extends Actor {
-  self: Logger =>
+class KeepClassDecider(
+  keepNamespaces: List[String]
+) extends Actor with Logging {
 
   import KeepClassDecider._
 
