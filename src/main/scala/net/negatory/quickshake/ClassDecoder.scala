@@ -140,7 +140,60 @@ class ClassDecoder(
 	if (exceptions != null ) {
 	  exceptions foreach { e => reportDependency(new ClassName(e)) }
 	}
-	null // todo
+	new EmptyVisitor {
+	  override def visitAnnotation(
+	    desc: String,
+	    visible: Boolean
+	  ): AnnotationVisitor = {
+	    reportDependencies(new Descriptor(desc))
+	    new DecoderAnnotationVisitor
+	  }
+
+	  override def visitAnnotationDefault() = new DecoderAnnotationVisitor
+
+	  override def visitFieldInsn(
+	    opcode: Int,
+	    owner: String,
+	    name: String,
+	    desc: String
+	  ) {
+	    reportDependencies(new Descriptor(desc))
+	  }
+
+	  override def visitMethodInsn(
+	    opcode: Int,
+	    owner: String,
+	    name: String,
+	    desc: String
+	  ) {
+	    reportDependencies(new Descriptor(desc))
+	  }
+
+	  override def visitMultiANewArrayInsn(desc: String, dims: Int) {
+	    reportDependencies(new Descriptor(desc))
+	  }
+
+	  override def visitTryCatchBlock(
+	    start: Label,
+	    end: Label,
+	    handler: Label,
+	    `type`: String
+	  ) {
+	    if (`type` != null) reportDependency(new ClassName(`type`))
+	  }
+
+	  override def visitLocalVariable(
+	    name: String,
+	    desc: String,
+	    signature: String,
+	    start: Label,
+	    end: Label,
+	    index: Int
+	  ) {
+	    reportDependencies(new Descriptor(desc))
+	  }
+
+	}
       }
 
     }

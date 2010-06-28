@@ -45,7 +45,6 @@ class KeepClassDecider(
 
     keepSet.add(className)
 
-    // See if somebody was looking for this class
     requesterMap remove className match {
       case Some(requester) => requester ! Kept
       case None => Unit
@@ -61,9 +60,13 @@ class KeepClassDecider(
       (ns, res) =>
 	res || (className isInNamespace ns)
     }
-    if (isInKeptNs) requester ! Kept
+    if (isInKeptNs) {
+      requester ! Kept
+    }
     // Check if we've already been told to keep it
-    else if (keepSet contains className) requester ! Kept
+    else if (keepSet contains className) {
+      requester ! Kept
+    }
     // Hold on to it for later
     else {
       requester ! Waiting

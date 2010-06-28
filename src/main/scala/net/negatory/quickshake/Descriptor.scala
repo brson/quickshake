@@ -41,7 +41,10 @@ class ClassName(val raw: String) {
     internalized startsWith internalizedNamespace
   }
 
-  override def equals(that: Any) = internalized equals that
+  override def equals(that: Any) = that match {
+    case that: ClassName => internalized equals that.internalized
+    case _ => false
+  }
   override def hashCode() = internalized hashCode
   override def toString() = internalized
 }
