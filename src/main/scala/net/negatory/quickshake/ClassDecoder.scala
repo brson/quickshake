@@ -118,7 +118,10 @@ class ClassDecoder(
       }
 
     }
-    
+
+    val reader = new ClassReader(classData)
+    // TODO: Are there more efficient flags?
+    reader.accept(visitor, 0)
   }
 
   private def reportDependency(depName: ClassName) {
