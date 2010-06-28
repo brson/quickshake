@@ -6,10 +6,10 @@ import scala.concurrent.TaskRunner
 
 object ClassDecoder {
   case object GetName
-  case class Name(className: String)
+  case class Name(className: ClassName)
   case object Discard
   case object FindDependencies
-  case class Dependency(className: String)
+  case class Dependency(className: ClassName)
   case object End
 }
 
@@ -26,7 +26,7 @@ class ClassDecoder(private val classData: Array[Byte], private val runner: TaskR
     val channel = new SyncChannel[Any]
     val decoder = self
     
-    def task() {
+    val task = () => {
 
       val visitor = new EmptyVisitor {
 	override def visit(
@@ -37,25 +37,27 @@ class ClassDecoder(private val classData: Array[Byte], private val runner: TaskR
 	  superName: String,
 	  interfaces: Array[String]
 	) {
-
-	  channel.write(Name(name))
+	  channel.write(Name(new ClassName(name)))
 	  channel.read match {
 	    case Discard => 
 	      // Short-circuit the rest of the visit for speed
 	      throw new NonLocalReturnControl(Unit, Unit)
 	    case FindDependencies =>
-	      reportDependency(superName)
-	      interfaces foreach { reportDependency _ }
+	      reportDependency(new ClassName(superName))
+	      interfaces foreach {
+		(i: String) =>
+		  reportDependency(new ClassName(i))
+	      }
 	  }
 	}
 
 	override def visitAnnotation(desc: String, visible: Boolean): AnnotationVisitor = {
-	  reportDependency(desc)
+	  reportDependencies(new Descriptor(desc))
 	  null // TODO: Do I need to visit the annotation?
 	}
 
 	override def visitInnerClass(name: String, outerName: String, innerName: String, access: Int) {
-	  reportDependency(name)
+	  reportDependency(new ClassName(name))
 	}
 
 	override def visitField(
@@ -65,7 +67,7 @@ class ClassDecoder(private val classData: Array[Byte], private val runner: TaskR
 	  signature: String,
 	  value: Any
 	): FieldVisitor = {
-	  reportDependency(desc)
+	  reportDependencies(new Descriptor(desc))
 	  null // TODO
 	}
 
@@ -76,19 +78,21 @@ class ClassDecoder(private val classData: Array[Byte], private val runner: TaskR
 	  signature: String,
 	  exceptions: Array[String]
 	): MethodVisitor = {
-	  def decodeMethodDescriptor(desc: String): List[String] = {
-	    Nil
-	  }
-	  decodeMethodDescriptor(desc) foreach { reportDependency _}
+	  reportDependencies(new Descriptor(desc))
 	  new EmptyVisitor {
+	    // TODO
 	  }
 	}
 
 	override def visitEnd() = decoder ! End
 
-	private def reportDependency(depName: String) {
+	private def reportDependency(depName: ClassName) {
 	  debug("Reporting dependency " + depName)
 	  decoder ! Dependency(depName)
+	}
+
+	private def reportDependencies(desc: Descriptor) {
+	  desc.classNames foreach { reportDependency _ }
 	}
       }
 

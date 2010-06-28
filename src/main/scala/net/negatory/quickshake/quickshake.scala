@@ -15,14 +15,15 @@ object QuickShake {
     val tracker = new ActorTracker with LoggerMixin
     import tracker.TrackerMixin
 
-    logger.info("indirs: ")
-    options.indirs foreach (dir => logger.info(dir))
+    logger.info("indirs:")
+    options.indirs foreach {dir => logger.info(dir)}
     logger.info("outdir: " + options.outdir)
-    logger.info("keepNamespace: " + options.keepNamespace)
+    logger.info("keepNamespaces:")
+    options.keepNamespaces foreach {ns => logger.info(ns)}
 
     val dataReaders = options.indirs map {(dir: String) => (new ClassDataReader(dir) with LoggerMixin with TrackerMixin).start}
     val dataWriter = (new ClassDataWriter(options.outdir) with LoggerMixin).start
-    val decider = (new KeepClassDecider(options.keepNamespace) with LoggerMixin).start
+    val decider = (new KeepClassDecider(options.keepNamespaces) with LoggerMixin).start
 
     def trackedActor(body: => Unit) = new Actor with TrackerMixin {
       def act() = body
@@ -50,8 +51,8 @@ object QuickShake {
 		  (self.asInstanceOf[TrackerMixin]).stopTracking
 		case KeepClassDecider.Kept =>
 		  logger.debug("Keeping " + className)
-		  decoder ! ClassDecoder.FindDependencies
 	          dataWriter ! ClassDataWriter.AddClass(className, classData)
+		  decoder ! ClassDecoder.FindDependencies
 		  loop {
 		    react {
 		      case ClassDecoder.Dependency(depName) => decider ! KeepClassDecider.Keep(depName)
@@ -145,7 +146,7 @@ class ClassDataReader(private val root: String) extends Actor {
 }
 
 object ClassDataWriter {
-  case class AddClass(className: String, classData: Array[Byte])
+  case class AddClass(className: ClassName, classData: Array[Byte])
   case object End
 }
 
@@ -164,9 +165,9 @@ class ClassDataWriter(dir: String) extends Actor {
 
 class Options(args: Array[String]) {
 
-  val indirs = args(0) split ":"
+  val indirs = (args(0) split ":").toList
   val outdir = args(1)
-  val keepNamespace = args(2)
+  val keepNamespaces = (args(2) split ":").toList
   val logLevel = args(3) match {
     case "debug" => LogLevel.Debug
     case "info" => LogLevel.Info
