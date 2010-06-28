@@ -54,7 +54,25 @@ class Descriptor(val raw: String) {
   require(!ClassName.rawIsNotADescriptor(raw))
 
   val classNames: List[ClassName] = {
-    Nil
+    // Parse the class names out of the descriptor by pulling out
+    // sequences that look like "L.*?;", starting from the beginning
+    val headRegex = "L.+?;".r // non-greedy
+    def getClassNames(buffer: String, current: List[ClassName]): List[ClassName] = {
+      if (buffer isEmpty) current
+      else headRegex findPrefixOf buffer match {
+	case Some(classDesc) =>
+	  val className = trimClassDescriptor(classDesc)
+	  val newBuf = buffer drop (classDesc.length)
+	  getClassNames(newBuf, new ClassName(className) :: current)
+	case None => getClassNames(buffer tail, current)
+      }
+    }
+    getClassNames(raw, Nil)
+  }
+
+  private def trimClassDescriptor(classDesc: String) = {
+    require((classDesc startsWith "L") && (classDesc endsWith ";"))
+    classDesc.tail take (classDesc.length - 2)
   }
 
 }
