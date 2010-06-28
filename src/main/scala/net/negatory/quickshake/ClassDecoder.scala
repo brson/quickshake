@@ -26,7 +26,7 @@ class ClassDecoder(private val classData: Array[Byte], private val runner: TaskR
     val channel = new SyncChannel[Any]
     val decoder = self
     
-    val task = () => {
+    def task() {
 
       val visitor = new EmptyVisitor {
 	override def visit(
@@ -45,7 +45,7 @@ class ClassDecoder(private val classData: Array[Byte], private val runner: TaskR
 	      throw new NonLocalReturnControl(Unit, Unit)
 	    case FindDependencies =>
 	      reportDependency(superName)
-	      interfaces foreach { reportDependency(_) }
+	      interfaces foreach { reportDependency _ }
 	  }
 	}
 
@@ -76,7 +76,12 @@ class ClassDecoder(private val classData: Array[Byte], private val runner: TaskR
 	  signature: String,
 	  exceptions: Array[String]
 	): MethodVisitor = {
-	  null // TODO: Need to inspect the code
+	  def decodeMethodDescriptor(desc: String): List[String] = {
+	    Nil
+	  }
+	  decodeMethodDescriptor(desc) foreach { reportDependency _}
+	  new EmptyVisitor {
+	  }
 	}
 
 	override def visitEnd() = decoder ! End
