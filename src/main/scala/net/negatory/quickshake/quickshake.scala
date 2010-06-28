@@ -193,21 +193,14 @@ object LogLevel extends Enumeration {
 import LogLevel._
 
 trait Logging {
-  def debug(msg: => String) = Unit
-  def info(msg: => String) = Unit
-  def warning(msg: => String) = Unit
-  def error(msg: => String) = Unit
-}
- 
-trait Logger {
 
   // Allows creation of a single logger, then mixing in the instance's Mixin trait
   trait LoggerMixin extends Logging {
-    val minLogLevel = Logger.this.minLogLevel
-    def log(level: LogLevel, msg: String) = Logger.this.log(level, msg)
+    override val minLogLevel = Logging.this.minLogLevel
+    override def log(level: LogLevel, msg: String) = Logging.this.log(level, msg)
   }
 
-  val minLogLevel: LogLevel
+  val minLogLevel: LogLevel = Debug
 
   // TODO: Consider eliding this method
   def debug(msg: => String): Unit = trylog(Debug, msg)
@@ -219,12 +212,12 @@ trait Logger {
     if (level >= minLogLevel) log(level, msg)
   }
 
-  def log(level: LogLevel, msg: String)
+  def log(level: LogLevel, msg: String) {}
 }
 
-class ConsoleLogger(val minLogLevel: LogLevel) extends Logger {
+class ConsoleLogger(override val minLogLevel: LogLevel) extends Logging {
 
-  def log(level: LogLevel, msg: String) {
+  override def log(level: LogLevel, msg: String) {
     println(level.toString + ": " + msg)
   }
 
