@@ -5,7 +5,7 @@ import actors.Actor._
 
 object ClassDataReader {
   case object Search
-  case class Visit(classData: Array[Byte])
+  case class Visit(origFile: String, classData: Array[Byte])
   case object End
 }
 
@@ -26,7 +26,7 @@ class ClassDataReader(root: String) extends Actor with Logging {
     debug("Searching for class files in " + root)
     for (classFile <- allClassFiles(root)) {
       debug("Found " + classFile)
-      reply(Visit(loadClassData(classFile)))
+      reply(Visit(classFile, loadClassData(classFile)))
     }
     reply(End)
   }
