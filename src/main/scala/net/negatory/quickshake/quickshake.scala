@@ -10,15 +10,21 @@ object QuickShake {
 
     val options = new Options(args)
     val logger = new ConsoleLogger(options.logLevel)
-    import logger.LoggerMixin
-    val tracker = new ActorTracker with LoggerMixin
-    import tracker.TrackerMixin
-
     logger.info("indirs:")
     options.indirs foreach {dir => logger.info(dir.toString)}
     logger.info("outdir: " + options.outdir)
     logger.info("keepNamespaces:")
     options.keepNamespaces foreach {ns => logger.info(ns)}
+
+    runShake(options, logger)
+  }
+
+  def runShake(options: Options, logger: Logger) {
+
+    import logger.LoggerMixin
+
+    val tracker = new ActorTracker with LoggerMixin
+    import tracker.TrackerMixin
 
     val dataReaders = options.indirs map {(dir: File) => (new ClassDataReader(dir) with LoggerMixin with TrackerMixin).start}
     val dataWriter = (new ClassDataWriter(options.outdir) with LoggerMixin).start
