@@ -7,12 +7,14 @@ object LogLevel extends Enumeration {
 
 import LogLevel._
 
-trait Logging {
+trait Logging extends Logger
+
+trait Logger {
 
   // Allows creation of a single logger, then mixing in the instance's Mixin trait
   trait LoggerMixin extends Logging {
-    override val minLogLevel = Logging.this.minLogLevel
-    override def log(level: LogLevel, msg: String) = Logging.this.log(level, msg)
+    override val minLogLevel = Logger.this.minLogLevel
+    override def log(level: LogLevel, msg: String) = Logger.this.log(level, msg)
   }
 
   val minLogLevel: LogLevel = Debug
