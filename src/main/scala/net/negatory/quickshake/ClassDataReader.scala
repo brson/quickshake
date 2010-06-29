@@ -2,10 +2,11 @@ package net.negatory.quickshake
 
 import actors.Actor
 import actors.Actor._
+import java.io.{File, FileInputStream}
 
 object ClassDataReader {
   case object Search
-  case class Visit(origFile: String, classData: Array[Byte])
+  case class Visit(origFile: File, classData: Array[Byte])
   case object End
 }
 
@@ -13,7 +14,6 @@ class ClassDataReader(root: String) extends Actor with Logging {
 
   import org.apache.commons.io.IOUtils.toByteArray
   import org.apache.commons.io.DirectoryWalker
-  import java.io.{File, FileInputStream}
   import ClassDataReader._
 
   def act() {
@@ -31,23 +31,23 @@ class ClassDataReader(root: String) extends Actor with Logging {
     reply(End)
   }
 
-  private def allClassFiles(root: String): List[String] = {
+  private def allClassFiles(root: String): List[File] = {
     new DirectoryWalker {
       protected[this] override def handleFile(file: File, depth: Int, results: java.util.Collection[_]): Unit = {
 	import java.util.Collection
-	if (file.getName.endsWith(".class")) results.asInstanceOf[Collection[String]].add(file.getAbsolutePath)
+	if (file.getName.endsWith(".class")) results.asInstanceOf[Collection[File]].add(file)
       }
       def findClassFiles() = {
-	val classFiles = new java.util.ArrayList[String]
+	val classFiles = new java.util.ArrayList[File]
 	walk (new File(root), classFiles)
 	import collection.JavaConversions._
-	val classFilesIter: Iterable[String] = classFiles 
+	val classFilesIter: Iterable[File] = classFiles 
 	classFilesIter.toList
       }
     }.findClassFiles
   }
 
-  private def loadClassData(file: String): Array[Byte] = {
+  private def loadClassData(file: File): Array[Byte] = {
     val stream = new FileInputStream(file)
     try {
       toByteArray(stream)

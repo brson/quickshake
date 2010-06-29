@@ -2,6 +2,7 @@ package net.negatory.quickshake
 
 import actors.Actor
 import actors.Actor._
+import java.io.File
 
 // TODO: Create a descriptor type to deal with the various representations of classes
 
@@ -34,7 +35,7 @@ object QuickShake {
     // TODO: Switch to a ThreadPoolRunner
     val taskRunner = new scala.concurrent.ThreadRunner
 
-    def decode(origFile: String, classData: Array[Byte]) {
+    def decode(origFile: File, classData: Array[Byte]) {
       val decoder = new ClassDecoder(classData, taskRunner) with LoggerMixin with TrackerMixin
       decoder.start
       trackedActor {

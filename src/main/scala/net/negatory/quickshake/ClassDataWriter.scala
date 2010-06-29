@@ -6,7 +6,7 @@ import java.io.File
 
 object ClassDataWriter {
   case class AddClass(
-    origFile: String,
+    origFile: File,
     className: ClassName,
     classData: Array[Byte]
     )
@@ -29,7 +29,7 @@ class ClassDataWriter(dir: String) extends Actor with Logging {
   }
 
   private def addClass(
-    origFile: String, 
+    origFile: File, 
     className: ClassName,
     classData: Array[Byte]
   ) {
@@ -43,7 +43,7 @@ class ClassDataWriter(dir: String) extends Actor with Logging {
     import FileUtils.{forceMkdir, copyFileToDirectory}
     forceMkdir(dirPath)
 
-    copyFileToDirectory(new File(origFile), dirPath)
+    copyFileToDirectory(origFile, dirPath)
   }
 }
 
