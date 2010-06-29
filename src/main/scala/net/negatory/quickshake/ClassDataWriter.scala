@@ -13,10 +13,8 @@ object ClassDataWriter {
   case object End
 }
 
-class ClassDataWriter(dir: String) extends Actor with Logging {
+class ClassDataWriter(outputDir: File) extends Actor with Logging {
   
-  val outputDir = new File(dir)
-
   def act() {
     import ClassDataWriter._
     loop {

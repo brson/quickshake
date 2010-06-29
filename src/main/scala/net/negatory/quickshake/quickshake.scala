@@ -15,12 +15,12 @@ object QuickShake {
     import tracker.TrackerMixin
 
     logger.info("indirs:")
-    options.indirs foreach {dir => logger.info(dir)}
+    options.indirs foreach {dir => logger.info(dir.toString)}
     logger.info("outdir: " + options.outdir)
     logger.info("keepNamespaces:")
     options.keepNamespaces foreach {ns => logger.info(ns)}
 
-    val dataReaders = options.indirs map {(dir: String) => (new ClassDataReader(dir) with LoggerMixin with TrackerMixin).start}
+    val dataReaders = options.indirs map {(dir: File) => (new ClassDataReader(dir) with LoggerMixin with TrackerMixin).start}
     val dataWriter = (new ClassDataWriter(options.outdir) with LoggerMixin).start
     val decider = (new KeepClassDecider(options.keepNamespaces) with LoggerMixin).start
     val counter = new ClassCounter().start
@@ -99,8 +99,8 @@ object QuickShake {
 
 class Options(args: Array[String]) {
 
-  val indirs = (args(0) split ":").toList
-  val outdir = args(1)
+  val indirs = (args(0) split ":").toList map { d => new File(d) }
+  val outdir = new File(args(1))
   val keepNamespaces = (args(2) split ":").toList
   val logLevel = args(3) match {
     case "debug" => LogLevel.Debug

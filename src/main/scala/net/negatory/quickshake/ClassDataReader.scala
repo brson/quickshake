@@ -10,7 +10,7 @@ object ClassDataReader {
   case object End
 }
 
-class ClassDataReader(root: String) extends Actor with Logging {
+class ClassDataReader(root: File) extends Actor with Logging {
 
   import org.apache.commons.io.IOUtils.toByteArray
   import org.apache.commons.io.DirectoryWalker
@@ -31,7 +31,7 @@ class ClassDataReader(root: String) extends Actor with Logging {
     reply(End)
   }
 
-  private def allClassFiles(root: String): List[File] = {
+  private def allClassFiles(root: File): List[File] = {
     new DirectoryWalker {
       protected[this] override def handleFile(file: File, depth: Int, results: java.util.Collection[_]): Unit = {
 	import java.util.Collection
@@ -39,7 +39,7 @@ class ClassDataReader(root: String) extends Actor with Logging {
       }
       def findClassFiles() = {
 	val classFiles = new java.util.ArrayList[File]
-	walk (new File(root), classFiles)
+	walk (root, classFiles)
 	import collection.JavaConversions._
 	val classFilesIter: Iterable[File] = classFiles 
 	classFilesIter.toList
