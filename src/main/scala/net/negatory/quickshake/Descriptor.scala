@@ -1,15 +1,15 @@
 package net.negatory.quickshake
 
 object ClassName {
-  def internalize(name: String) = name map {
-    (char) =>
+  def internalize(name: String): String = (name map {
+    (char: Char) =>
       if (char == '.') '/'
       else char
-  }
+  }).toString
   def rawIsNotADescriptor(raw: String) = {
     import Descriptor._
     val noPrefixes = fieldTypePrefixes forall {
-      (x: Char) => !(raw startsWith x :: Nil)
+      (x: Char) => !(raw startsWith x.toString)
     }
     val noMethod = rawIsNotAMethodDescriptor(raw)
     noPrefixes && noMethod
@@ -34,7 +34,7 @@ class ClassName(val raw: String) {
 
   require(rawIsNotADescriptor(raw))
 
-  private val internalized = internalize(raw)
+  private val internalized: String = internalize(raw)
 
   def isInNamespace(internalizedNamespace: String) = {
     require(internalizedNamespace == internalize(internalizedNamespace), "Not an internalized namespace")
@@ -71,7 +71,7 @@ class Descriptor(val raw: String) {
 	  val className = trimClassDescriptor(classDesc)
 	  val newBuf = buffer drop (classDesc.length)
 	  getClassNames(newBuf, new ClassName(className) :: current)
-	case None => getClassNames(buffer tail, current)
+	case None => getClassNames(buffer drop 1, current)
       }
     }
     getClassNames(raw, Nil)
@@ -79,7 +79,7 @@ class Descriptor(val raw: String) {
 
   private def trimClassDescriptor(classDesc: String) = {
     require((classDesc startsWith "L") && (classDesc endsWith ";"))
-    classDesc.tail take (classDesc.length - 2)
+    (classDesc drop 1) take (classDesc.length - 2)
   }
 
 }

@@ -23,7 +23,7 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
       case GetName =>
 	getName()
 	react {
-	  case Discard => Unit; exit()
+	  case Discard => exit()
 	  case FindDependencies =>
 	    findDependencies()
 	    reply(End)
@@ -33,7 +33,7 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
   }
 
   private def getName() {
-    import runtime.NonLocalReturnControl
+    import runtime.NonLocalReturnException
 
     val visitor = new EmptyVisitor {
       override def visit(
@@ -45,7 +45,7 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
 	interfaces: Array[String]
       ) {
 	reply(Name(new ClassName(name)))
-	throw new NonLocalReturnControl(Unit, Unit)
+	throw new NonLocalReturnException((), ())
       }
     }
     val reader = new ClassReader(classData)
@@ -53,7 +53,7 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
       // TODO: Are there more efficient flags?
       reader.accept(visitor, 0)
     } catch {
-      case _: NonLocalReturnControl[_] =>
+      case _: NonLocalReturnException[_] =>
     }
   }
 

@@ -27,7 +27,7 @@ class ActorTracker extends AnyRef with Logging {
 	  debug("Unregistering actor " + actor.toString)
 	  counter -= 1
 	  if (counter == 0) {
-	    sync.set(Unit)
+	    sync.set(())
 	    exit
 	  }
       }

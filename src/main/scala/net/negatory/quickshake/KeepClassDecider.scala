@@ -43,11 +43,12 @@ class KeepClassDecider(
   
   private def keep(className: ClassName) {
 
-    keepSet.add(className)
+    keepSet += className
 
-    requesterMap remove className match {
-      case Some(requester) => requester ! Kept
-      case None => Unit
+    if (requesterMap contains className) {
+      val requester = requesterMap(className)
+      requester ! Kept
+      requesterMap -= className
     }
   }
 

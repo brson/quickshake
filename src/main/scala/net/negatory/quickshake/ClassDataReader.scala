@@ -38,11 +38,10 @@ class ClassDataReader(root: File) extends Actor with Logging {
 	if (file.getName.endsWith(".class")) results.asInstanceOf[Collection[File]].add(file)
       }
       def findClassFiles() = {
+	import scala.collection.jcl
 	val classFiles = new java.util.ArrayList[File]
 	walk (root, classFiles)
-	import collection.JavaConversions._
-	val classFilesIter: Iterable[File] = classFiles 
-	classFilesIter.toList
+	new jcl.ArrayList(classFiles).toList
       }
     }.findClassFiles
   }
