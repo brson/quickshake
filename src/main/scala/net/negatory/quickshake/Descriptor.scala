@@ -41,6 +41,10 @@ class ClassName(val raw: String) {
     internalized startsWith internalizedNamespace
   }
 
+  def filePath = {
+    internalized + ".scala"
+  }
+
   override def equals(that: Any) = that match {
     case that: ClassName => internalized equals that.internalized
     case _ => false
