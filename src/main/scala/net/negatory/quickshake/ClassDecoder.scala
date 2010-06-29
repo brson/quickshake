@@ -2,7 +2,6 @@ package net.negatory.quickshake
 
 import actors.Actor
 import actors.Actor._
-import scala.concurrent.TaskRunner
 
 object ClassDecoder {
   case object GetName
@@ -13,10 +12,7 @@ object ClassDecoder {
   case object End
 }
 
-class ClassDecoder(
-  classData: Array[Byte],
-  runner: TaskRunner
-) extends Actor with Logging {
+class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
 
   import ClassDecoder._
   import org.objectweb.asm._

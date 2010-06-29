@@ -30,11 +30,8 @@ object QuickShake {
       start()
     }
 
-    // TODO: Switch to a ThreadPoolRunner
-    val taskRunner = new scala.concurrent.ThreadRunner
-
     def decode(origFile: File, classData: Array[Byte]) {
-      val decoder = new ClassDecoder(classData, taskRunner) with LoggerMixin with TrackerMixin
+      val decoder = new ClassDecoder(classData) with LoggerMixin with TrackerMixin
       decoder.start
       trackedActor {
         decoder ! ClassDecoder.GetName
