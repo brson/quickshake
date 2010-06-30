@@ -5,7 +5,7 @@ object ClassName {
     (char: Char) =>
       if (char == '.') '/'
       else char
-  }).toString
+  }).mkString
   def rawIsNotADescriptor(raw: String) = {
     import Descriptor._
     val noPrefixes = fieldTypePrefixes forall {
@@ -28,7 +28,10 @@ class ClassName(val raw: String) {
   private val internalized: String = internalize(raw)
 
   def isInNamespace(internalizedNamespace: String) = {
-    require(internalizedNamespace == internalize(internalizedNamespace), "Not an internalized namespace")
+    require(
+      internalizedNamespace == internalize(internalizedNamespace),
+      "Not an internalized namespace: " + internalizedNamespace
+    )
     internalized startsWith internalizedNamespace
   }
 
