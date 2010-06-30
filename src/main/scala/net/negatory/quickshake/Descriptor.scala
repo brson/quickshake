@@ -16,15 +16,6 @@ object ClassName {
   }
 }
 
-object Descriptor {
-  val fieldTypePrefixes = "BCDFIJSZL["
-  def withoutTypePrefixes(internalFieldName: String) = {
-    require(rawIsNotAMethodDescriptor(internalFieldName))
-    "^\\[*L".r replaceFirstIn(internalFieldName, "")
-  }
-  def rawIsNotAMethodDescriptor(raw: String) = !(raw startsWith "(")
-}
-
 /**
  * Represents an internal class name
  */
@@ -51,6 +42,15 @@ class ClassName(val raw: String) {
   }
   override def hashCode() = internalized hashCode
   override def toString() = internalized
+}
+
+object Descriptor {
+  val fieldTypePrefixes = "BCDFIJSZL["
+  def withoutTypePrefixes(internalFieldName: String) = {
+    require(rawIsNotAMethodDescriptor(internalFieldName))
+    "^\\[*L".r replaceFirstIn(internalFieldName, "")
+  }
+  def rawIsNotAMethodDescriptor(raw: String) = !(raw startsWith "(")
 }
 
 /**
