@@ -36,16 +36,35 @@ class ActorTracker extends AnyRef with Logging {
 
   trait TrackerMixin extends Actor {
     type TrackerMixin = ActorTracker.this.TrackerMixin
+
+    val guard = actor {
+      var tracking = false
+      loop {
+	self.react {
+	  case r @ Register(_) => if (!tracking) {
+	    tracking = true
+	    registrar ! r
+	  }
+	  case u @ Unregister(_) => if (tracking) {
+	    tracking = false
+	    registrar ! u
+	  }
+	  case End => exit()
+	}
+      }
+    }
+    
     abstract override def start(): Actor = {
-      registrar ! Register(this)
+      guard ! Register(this)
       super.start()
     }
     abstract override def exit(): Nothing = {
       stopTracking()
+      guard ! End
       super.exit()
     }
     def stopTracking() {
-      registrar ! Unregister(this)
+      guard ! Unregister(this)
     }
   }
 
@@ -59,7 +78,7 @@ class ActorTracker extends AnyRef with Logging {
 	case End => exit
       }
     }
-  }
+  }.start()
 
   def waitForActors() = {
     initBlocker ! End
