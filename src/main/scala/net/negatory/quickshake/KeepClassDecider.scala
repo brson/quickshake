@@ -9,6 +9,7 @@ object KeepClassDecider {
   case object Kept
   case object Waiting
   case object Discarded
+  case object DrainWaiters
   case object End
 }
 
@@ -27,8 +28,8 @@ class KeepClassDecider(
       react {
 	case Keep(className) => keep(className)
 	case Decide(className) => decide(className, sender)
+	case DrainWaiters => drainRequesters()
 	case End => 
-	  drainRequesters()
 	  debug("Decider exiting")
 	  exit
       }

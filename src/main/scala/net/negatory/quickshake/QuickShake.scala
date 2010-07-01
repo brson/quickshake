@@ -4,6 +4,8 @@ import actors.Actor
 import actors.Actor._
 import java.io.File
 
+// TODO: Test performence of 'symbols vs case objects
+
 object QuickShake {
 
   def main(args: Array[String]) {
@@ -23,81 +25,176 @@ object QuickShake {
 
     import logger.LoggerMixin
 
-    val tracker = new ActorTracker with LoggerMixin
-    import tracker.TrackerMixin
-
-    val dataReaders = options.indirs map {(dir: File) => (new ClassDataReader(dir) with LoggerMixin with TrackerMixin).start}
+    val dataReaders = options.indirs map {(dir: File) => (new ClassDataReader(dir) with LoggerMixin).start}
     val dataWriter = (new ClassDataWriter(options.outdir) with LoggerMixin).start
     val decider = (new KeepClassDecider(options.keepNamespaces) with LoggerMixin).start
-    val counter = new ClassCounter().start
 
-    def trackedActor(body: => Unit) = new Actor with TrackerMixin {
-      def act() = body
-      start()
+    object ProgressGate {
+      case class Candidates(total: Int)
+      case object OneKept
+      case object OneDiscarded
+      case object OneWaiting
+      case object OneResumedAndKept
+      case object OneResumedAndDiscarded
+      case object WaitUntilAllSeen
+      case object AllSeen
+      case object WaitUntilAllProcessed
+      case object AllProcessed
+      case object GetTotals
+      case class Totals(candidates: Int, kept: Int, discarded: Int)
+      case object End
+    }
+
+    val progressGate = actor {
+      import actors.OutputChannel
+      import ProgressGate._
+
+      var candidates: Option[Int] = None
+      var kept = 0
+      var discarded = 0
+      var waiting = 0
+      def processed = kept + discarded
+      def seen = processed + waiting
+      var seenWaiter: Option[OutputChannel[Any]] = None
+      var processedWaiter: Option[OutputChannel[Any]] = None
+
+      def checkConditions() = candidates match {
+	case Some(candidates) => {
+	  assert(waiting <= candidates)
+	  if (processed == candidates) {
+	    seenWaiter match {
+	      case Some(waiter) =>
+		waiter ! AllSeen
+	        seenWaiter = None
+	      case _ => ()
+	    }
+	    processedWaiter match {
+	      case Some(waiter) =>
+		waiter ! AllProcessed
+		processedWaiter = None
+	      case _ => ()
+	    }
+	  } else if (waiting + processed == candidates) {
+	    seenWaiter match {
+	      case Some(waiter) =>
+		waiter ! AllSeen
+	        seenWaiter = None
+	      case _ => ()
+	    }
+	  }
+	}
+	case None => ()
+      }
+
+      loop {
+	react {
+	  case Candidates(total) => candidates = Some(total); checkConditions()
+	  case OneKept => kept += 1; checkConditions()
+	  case OneDiscarded => discarded += 1; checkConditions()
+	  case OneWaiting => waiting += 1; checkConditions()
+	  case OneResumedAndKept => waiting -= 1; kept +=1; checkConditions()
+	  case OneResumedAndDiscarded => waiting -= 1; discarded +=1; checkConditions()
+	  case WaitUntilAllSeen => seenWaiter = Some(sender); checkConditions()
+	  case WaitUntilAllProcessed => processedWaiter = Some(sender); checkConditions()
+	  case GetTotals =>
+	    assert(candidates isDefined)
+	    reply(Totals(candidates.get, kept, discarded))
+	  case End => exit()
+	}
+      }
     }
 
     def decode(origFile: File, classData: Array[Byte]) {
-      val decoder = new ClassDecoder(classData) with LoggerMixin with TrackerMixin
+      val decoder = new ClassDecoder(classData) with LoggerMixin
       decoder.start
-      trackedActor {
+      var waiting = false
+      actor {
         decoder ! ClassDecoder.GetName
         react {
           case ClassDecoder.Name(className) =>
 	    logger.debug("Decoded name of class " + className)
-	    counter ! ClassCounter.Inspected
 	    decider ! KeepClassDecider.Decide(className)
 	    loop {
 	      react {
 		case KeepClassDecider.Waiting =>
-		  logger.debug("Waiting on "  + decider)
-		  logger.debug("Stop tracking " + self + " & " + decoder)
-		  decoder.stopTracking
-		  (self.asInstanceOf[TrackerMixin]).stopTracking
+		  logger.debug("Waiting for decision on "  + className)
+		  waiting = true
+		  progressGate ! ProgressGate.OneWaiting
 		case KeepClassDecider.Kept =>
 		  logger.debug("Keeping " + className)
-		  counter ! ClassCounter.Kept
 	          dataWriter ! ClassDataWriter.AddClass(origFile, className, classData)
 		  decoder ! ClassDecoder.FindDependencies
 		  loop {
 		    react {
-		      case ClassDecoder.Dependency(depName) => decider ! KeepClassDecider.Keep(depName)
-		      case ClassDecoder.End => exit
+		      case ClassDecoder.Dependency(depName) => ()//decider ! KeepClassDecider.Keep(depName)
+		      case ClassDecoder.End =>
+			progressGate ! {
+			  if (waiting) ProgressGate.OneResumedAndKept
+			  else ProgressGate.OneKept
+			}
+		        exit()
 		    }
 		  }
 		case KeepClassDecider.Discarded => 
 		  logger.debug("Discarding " + className)
-		  counter ! ClassCounter.Discarded
 	          decoder ! ClassDecoder.Discard
-		  exit
+		  progressGate ! {
+		    if (waiting) ProgressGate.OneResumedAndDiscarded
+		    else ProgressGate.OneDiscarded
+		  }
+		  exit()
 	      }
 	    }
         }
       }
     }
 
-    dataReaders foreach {
-      (reader) => trackedActor {
-        reader ! ClassDataReader.Search
-        loop {
-          react {
-            case ClassDataReader.Visit(origFile, classData) =>
-	      decode (origFile, classData)
-            case ClassDataReader.End => exit
+    import concurrent.SyncVar
+
+    // Create a client for each reader that processes the input classes.
+    // Get a list of futures containing the 
+    val perReaderTotals = dataReaders map { 
+      
+      (reader) =>
+	val total = new SyncVar[Int]
+
+	actor {
+          reader ! ClassDataReader.Search
+
+	  var candidateCount = 0
+          loop {
+            react {
+              case ClassDataReader.Visit(origFile, classData) =>
+		decode (origFile, classData)
+		candidateCount += 1
+              case ClassDataReader.End =>
+		total set candidateCount
+		exit()
+            }
           }
-        }
-      }
+	}
+
+	total
     }
 
-    tracker.waitForActors
-    logger.debug("All actors done")
+    val totalCandidates = perReaderTotals.foldLeft (0) { (total, readerTotal) => total + readerTotal.get }
+
+    progressGate ! ProgressGate.Candidates(totalCandidates)
+    progressGate !? ProgressGate.WaitUntilAllSeen
+
+    decider ! KeepClassDecider.DrainWaiters
     decider ! KeepClassDecider.End
-    dataWriter ! ClassDataWriter.End
-    counter !? ClassCounter.GetResults match {
-      case ClassCounter.Results(inspected, kept, discarded) =>
-	logger.info("Classes inspected: " + inspected)
-	logger.info("Classes kept: " + kept)
-        logger.info("Classed discarded: " + discarded)
+
+    progressGate ! ProgressGate.WaitUntilAllProcessed
+    progressGate !? ProgressGate.GetTotals match {
+      case ProgressGate.Totals(candidates, kept, discarded) =>
+	logger.info("Analyzed: " + candidates)
+	logger.info("Kept: " + kept)
+	logger.info("Discarded: " + discarded)
     }
+    progressGate ! ProgressGate.End
+
+    dataWriter ! ClassDataWriter.End
     
   }
 
