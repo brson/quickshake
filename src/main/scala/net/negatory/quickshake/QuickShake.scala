@@ -34,8 +34,7 @@ object QuickShake {
       case object OneKept
       case object OneDiscarded
       case object OneWaiting
-      case object OneResumedAndKept
-      case object OneResumedAndDiscarded
+      case object OneResumed
       case object WaitUntilAllSeen
       case object AllSeen
       case object WaitUntilAllProcessed
@@ -58,44 +57,15 @@ object QuickShake {
       var seenWaiter: Option[OutputChannel[Any]] = None
       var processedWaiter: Option[OutputChannel[Any]] = None
 
-      def checkConditions() = candidates match {
-	case Some(candidates) => {
-	  assert(waiting <= candidates)
-	  if (processed == candidates) {
-	    seenWaiter match {
-	      case Some(waiter) =>
-		waiter ! AllSeen
-	        seenWaiter = None
-	      case _ => ()
-	    }
-	    processedWaiter match {
-	      case Some(waiter) =>
-		waiter ! AllProcessed
-		processedWaiter = None
-	      case _ => ()
-	    }
-	  } else if (waiting + processed == candidates) {
-	    seenWaiter match {
-	      case Some(waiter) =>
-		waiter ! AllSeen
-	        seenWaiter = None
-	      case _ => ()
-	    }
-	  }
-	}
-	case None => ()
-      }
-
       loop {
 	react {
-	  case Candidates(total) => candidates = Some(total); checkConditions()
-	  case OneKept => kept += 1; checkConditions()
-	  case OneDiscarded => discarded += 1; checkConditions()
-	  case OneWaiting => waiting += 1; checkConditions()
-	  case OneResumedAndKept => waiting -= 1; kept +=1; checkConditions()
-	  case OneResumedAndDiscarded => waiting -= 1; discarded +=1; checkConditions()
-	  case WaitUntilAllSeen => seenWaiter = Some(sender); checkConditions()
-	  case WaitUntilAllProcessed => processedWaiter = Some(sender); checkConditions()
+	  case Candidates(total) => candidates = Some(total)
+	  case OneKept => kept += 1
+	  case OneDiscarded => discarded += 1
+	  case OneWaiting => waiting += 1
+	  case OneResumed => waiting -= 1
+	  case WaitUntilAllSeen => seenWaiter = Some(sender)
+	  case WaitUntilAllProcessed => processedWaiter = Some(sender)
 	  case GetTotals =>
 	    assert(candidates isDefined)
 	    reply(Totals(candidates.get, kept, discarded))
@@ -122,26 +92,22 @@ object QuickShake {
 		  progressGate ! ProgressGate.OneWaiting
 		case KeepClassDecider.Kept =>
 		  logger.debug("Keeping " + className)
+		  if (waiting) progressGate ! ProgressGate.OneResumed
 	          dataWriter ! ClassDataWriter.AddClass(origFile, className, classData)
 		  decoder ! ClassDecoder.FindDependencies
 		  loop {
 		    react {
-		      case ClassDecoder.Dependency(depName) => ()//decider ! KeepClassDecider.Keep(depName)
+		      case ClassDecoder.Dependency(depName) => decider ! KeepClassDecider.Keep(depName)
 		      case ClassDecoder.End =>
-			progressGate ! {
-			  if (waiting) ProgressGate.OneResumedAndKept
-			  else ProgressGate.OneKept
-			}
+			progressGate ! ProgressGate.OneKept
 		        exit()
 		    }
 		  }
 		case KeepClassDecider.Discarded => 
 		  logger.debug("Discarding " + className)
+		  if (waiting) progressGate ! ProgressGate.OneResumed
+		  progressGate ! ProgressGate.OneDiscarded
 	          decoder ! ClassDecoder.Discard
-		  progressGate ! {
-		    if (waiting) ProgressGate.OneResumedAndDiscarded
-		    else ProgressGate.OneDiscarded
-		  }
 		  exit()
 	      }
 	    }
@@ -180,12 +146,12 @@ object QuickShake {
     val totalCandidates = perReaderTotals.foldLeft (0) { (total, readerTotal) => total + readerTotal.get }
 
     progressGate ! ProgressGate.Candidates(totalCandidates)
-    progressGate !? ProgressGate.WaitUntilAllSeen
-
+    //progressGate !? ProgressGate.WaitUntilAllSeen
+    Thread.sleep(10000)
     decider ! KeepClassDecider.DrainWaiters
     decider ! KeepClassDecider.End
-
-    progressGate ! ProgressGate.WaitUntilAllProcessed
+    Thread.sleep(1000)
+    //progressGate ! ProgressGate.WaitUntilAllProcessed
     progressGate !? ProgressGate.GetTotals match {
       case ProgressGate.Totals(candidates, kept, discarded) =>
 	logger.info("Analyzed: " + candidates)
