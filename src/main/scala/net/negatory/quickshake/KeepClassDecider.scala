@@ -4,7 +4,7 @@ import actors.Actor
 import actors.Actor._
 
 object KeepClassDecider {
-  case class Keep(className: ClassName)
+  case class Keep(className: ClassName, preWakeAction: () => Unit)
   case class Decide(className: ClassName)
   case object Kept
   case object Waiting
@@ -26,7 +26,7 @@ class KeepClassDecider(
   def act() {
     loop {
       react {
-	case Keep(className) => keep(className)
+	case Keep(className, preWakeAction) => keep(className, preWakeAction)
 	case Decide(className) => decide(className, sender)
 	case DrainWaiters => drainRequesters()
 	case End => 
@@ -42,15 +42,17 @@ class KeepClassDecider(
   private val keepSet = new HashSet[ClassName]
   private val requesterMap = new HashMap[ClassName, OutputChannel[Any]]
   
-  private def keep(className: ClassName) {
+  private def keep(className: ClassName, preWakeAction: () => Unit) {
 
     keepSet += className
 
     if (requesterMap contains className) {
+      preWakeAction()
       val requester = requesterMap(className)
       requester ! Kept
       requesterMap -= className
     }
+    reply(())
   }
 
   private def decide(className: ClassName, requester: OutputChannel[Any]) {
