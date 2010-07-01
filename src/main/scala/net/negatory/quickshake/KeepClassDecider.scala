@@ -57,8 +57,8 @@ class KeepClassDecider(
     debug("Deciding whether to keep " + className)
 
     // Check if this is in a preserved namespace
-    val isInKeptNs = internalKeepNamespaces.foldRight (false) {
-      (ns, res) =>
+    val isInKeptNs = internalKeepNamespaces.foldLeft (false) {
+      (res, ns) =>
 	res || (className isInNamespace ns)
     }
     if (isInKeptNs) {
