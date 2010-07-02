@@ -2,39 +2,9 @@ package net.negatory.quickshake
 
 import actors.Actor
 import actors.Actor._
-import actors.Exit
 import java.io.File
 
 // TODO: Test performence of 'symbols vs case objects
-
-object ExitHandler {
-  case object End
-  case class Watch(actor: Actor)
-}
-
-class ExitHandler extends Actor with Logging {
-
-  import ExitHandler._
-
-  val handler = this
-
-  trait TrapMixin extends Actor {
-    handler !? Watch(this)
-  }
-
-  trapExit = true
-
-  def act() = loop {
-    react {
-      case Watch(actor) => link(actor); reply(())
-      case Exit(from, ex: Exception) => {
-	error("Actor failed: " + ex.toString)
-      }
-      case Exit(from, _) => ()
-      case End => exit()
-    }
-  }
-}
 
 object QuickShake {
 
