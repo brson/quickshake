@@ -5,6 +5,7 @@ import actors.Actor._
 
 object KeepClassDecider {
   case class Keep(className: ClassName)
+  case object DoneKeeping
   case class Decide(className: ClassName, preWakeAction: () => Unit)
   case object Kept
   case object Waiting
@@ -52,6 +53,7 @@ class KeepClassDecider(
       requester ! Kept
       requesterMap -= className
     }
+    reply(DoneKeeping)
   }
 
   private def decide(className: ClassName, preWakeAction: () => Unit) {

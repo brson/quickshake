@@ -103,6 +103,9 @@ object QuickShake {
 		    react {
 		      case ClassDecoder.Dependency(depName) =>
 			decider ! KeepClassDecider.Keep(depName)
+			react {
+			  case KeepClassDecider.DoneKeeping => ()
+			}
 
 		      case ClassDecoder.End =>
 			progressGate ! ProgressGate.OneKept
@@ -150,7 +153,6 @@ object QuickShake {
 
     val totalCandidates = perReaderTotals.foldLeft (0) { (total, readerTotal) => total + readerTotal.get }
 
-    //Thread.sleep(10000)
     logger.debug("Waiting until all classes have been seen")
     progressGate ! ProgressGate.Candidates(totalCandidates)
     progressGate !? ProgressGate.WaitUntilAllSeen
