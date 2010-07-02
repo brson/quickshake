@@ -10,7 +10,9 @@ object ClassDataReader {
   case object End
 }
 
-class ClassDataReader(root: File) extends Actor with Logging {
+trait ClassDataReader extends Actor
+
+class DirectoryDataReader(root: File) extends ClassDataReader with Logging {
 
   import org.apache.commons.io.IOUtils.toByteArray
   import org.apache.commons.io.DirectoryWalker
@@ -57,3 +59,8 @@ class ClassDataReader(root: File) extends Actor with Logging {
   }
 }
 
+class JarDataReader(jar: File) extends ClassDataReader with Logging {
+
+  def act() {
+  }
+}

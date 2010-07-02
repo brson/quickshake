@@ -42,8 +42,8 @@ object QuickShake {
 
     val options = new Options(args)
     val logger = new ConsoleLogger(options.logLevel)
-    logger.info("indirs:")
-    options.indirs foreach {dir => logger.info(dir.toString)}
+    logger.info("input:")
+    options.input foreach {dir => logger.info(dir.toString)}
     logger.info("outdir: " + options.outdir)
     logger.info("keepNamespaces:")
     options.keepNamespaces foreach {ns => logger.info(ns)}
@@ -62,9 +62,15 @@ object QuickShake {
 
     trait ShakeMixin extends LoggerMixin with TrapMixin
 
-    val dataReaders = options.indirs map {
-      (dir: File) => {
-	new ClassDataReader(dir) with ShakeMixin
+    val dataReaders = options.input map {
+      (in: File) => {
+	if (in.isDirectory) {
+	  new DirectoryDataReader(in) with ShakeMixin
+	} else if (in.isFile) {
+	  new JarDataReader(in) with ShakeMixin
+	} else {
+	  error("Input " + in.getPath + " not found")
+	}
       }.start()
     }
     val dataWriter = {
@@ -179,7 +185,7 @@ object QuickShake {
 
 class Options(args: Array[String]) {
 
-  val indirs = (args(0) split ":").toList map { d => new File(d) }
+  val input = (args(0) split ":").toList map { d => new File(d) }
   val outdir = new File(args(1))
   val keepNamespaces = (args(2) split ":").toList
   val logLevel = args(3) match {
