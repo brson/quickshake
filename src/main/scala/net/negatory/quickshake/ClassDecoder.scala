@@ -199,9 +199,15 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
     reader.accept(visitor, 0)
   }
 
+  import collection.mutable.HashSet
+  val cache = new HashSet[ClassName]
+    
   private def reportDependency(depName: ClassName) {
-    debug("Reporting dependency " + depName)
-    reply(Dependency(depName))
+    if (!(cache contains depName)) {
+      debug("Reporting dependency " + depName)
+      cache += depName
+      reply(Dependency(depName))
+    }
   }
 
   private def reportDependencies(desc: Descriptor) {
