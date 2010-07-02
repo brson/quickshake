@@ -4,8 +4,8 @@ import actors.Actor
 import actors.Actor._
 
 object KeepClassDecider {
-  case class Keep(className: ClassName, preWakeAction: () => Unit)
-  case class Decide(className: ClassName)
+  case class Keep(className: ClassName)
+  case class Decide(className: ClassName, preWakeAction: () => Unit)
   case object Kept
   case object Waiting
   case object Discarded
@@ -26,8 +26,8 @@ class KeepClassDecider(
   def act() {
     loop {
       react {
-	case Keep(className, preWakeAction) => keep(className, preWakeAction)
-	case Decide(className) => decide(className, sender)
+	case Keep(className) => keep(className)
+	case Decide(className, preWakeAction) => decide(className, preWakeAction)
 	case DrainWaiters => drainRequesters()
 	case End => 
 	  debug("Decider exiting")
@@ -40,22 +40,22 @@ class KeepClassDecider(
   import actors.OutputChannel
 
   private val keepSet = new HashSet[ClassName]
-  private val requesterMap = new HashMap[ClassName, OutputChannel[Any]]
+  private val requesterMap = new HashMap[ClassName, Pair[OutputChannel[Any], () => Unit]]
   
-  private def keep(className: ClassName, preWakeAction: () => Unit) {
+  private def keep(className: ClassName) {
 
     keepSet += className
 
     if (requesterMap contains className) {
+      val (requester, preWakeAction) = requesterMap(className)
       preWakeAction()
-      val requester = requesterMap(className)
       requester ! Kept
       requesterMap -= className
     }
-    reply(())
+    //reply(())
   }
 
-  private def decide(className: ClassName, requester: OutputChannel[Any]) {
+  private def decide(className: ClassName, preWakeAction: () => Unit) {
 
     debug("Deciding whether to keep " + className)
 
@@ -65,22 +65,23 @@ class KeepClassDecider(
 	res || (className isInNamespace ns)
     }
     if (isInKeptNs) {
-      requester ! Kept
+      sender ! Kept
     }
     // Check if we've already been told to keep it
     else if (keepSet contains className) {
-      requester ! Kept
+      sender ! Kept
     }
     // Hold on to it for later
     else {
-      requester ! Waiting
-      requesterMap put (className, requester)
+      sender ! Waiting
+      requesterMap put (className, (sender, preWakeAction))
     }
   }
 
   private def drainRequesters() {
     debug("Discarding remaining class keep decisions")
-    for (Pair(_, requester) <- requesterMap) {
+    for (Pair(_, Pair(requester, preWakeAction)) <- requesterMap) {
+      preWakeAction()
       requester ! Discarded
     }
     requesterMap.clear()

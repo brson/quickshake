@@ -2,9 +2,39 @@ package net.negatory.quickshake
 
 import actors.Actor
 import actors.Actor._
+import actors.Exit
 import java.io.File
 
 // TODO: Test performence of 'symbols vs case objects
+
+object ExitHandler {
+  case object End
+  case class Watch(actor: Actor)
+}
+
+class ExitHandler extends Actor with Logging {
+
+  import ExitHandler._
+
+  val handler = this
+
+  trait TrapMixin extends Actor {
+    handler !? Watch(this)
+  }
+
+  trapExit = true
+
+  def act() = loop {
+    react {
+      case Watch(actor) => link(actor); reply(())
+      case Exit(from, ex: Exception) => {
+	error("Actor failed: " + ex.toString)
+      }
+      case Exit(from, _) => ()
+      case End => exit()
+    }
+  }
+}
 
 object QuickShake {
 
@@ -25,20 +55,40 @@ object QuickShake {
 
     import logger.LoggerMixin
 
-    val dataReaders = options.indirs map {(dir: File) => (new ClassDataReader(dir) with LoggerMixin).start()}
-    val dataWriter = (new ClassDataWriter(options.outdir) with LoggerMixin).start()
-    val decider = (new KeepClassDecider(options.keepNamespaces) with LoggerMixin).start()
-    val progressGate = (new ProgressGate).start()
+    val exitHandler = new ExitHandler with LoggerMixin
+    exitHandler.start()
+
+    import exitHandler.TrapMixin
+
+    trait ShakeMixin extends LoggerMixin with TrapMixin
+
+    val dataReaders = options.indirs map {
+      (dir: File) => {
+	new ClassDataReader(dir) with ShakeMixin
+      }.start()
+    }
+    val dataWriter = {
+      new ClassDataWriter(options.outdir) with ShakeMixin
+    }.start()
+    val decider = {
+      new KeepClassDecider(options.keepNamespaces) with ShakeMixin
+    }.start()
+    val progressGate = {
+      new ProgressGate with ShakeMixin
+    }.start()
 
     def decode(origFile: File, classData: Array[Byte]) {
-      val decoder = new ClassDecoder(classData) with LoggerMixin
+      val decoder = new ClassDecoder(classData) with ShakeMixin
       decoder.start
+
       actor {
+
         decoder ! ClassDecoder.GetName
         react {
           case ClassDecoder.Name(className) =>
 	    logger.debug("Decoded name of class " + className)
-	    decider ! KeepClassDecider.Decide(className)
+	    val resume = () => progressGate ! ProgressGate.OneResumed
+	    decider ! KeepClassDecider.Decide(className, resume)
 	    progressGate ! ProgressGate.OneStarted
 	    loop {
 	      react {
@@ -52,8 +102,10 @@ object QuickShake {
 		  loop {
 		    react {
 		      case ClassDecoder.Dependency(depName) =>
-			val resume = () => progressGate ! ProgressGate.OneResumed
-			decider ! KeepClassDecider.Keep(depName, resume)
+			decider ! KeepClassDecider.Keep(depName)
+			/*react {
+			  case _ => ()
+			}*/
 		      case ClassDecoder.End =>
 			progressGate ! ProgressGate.OneKept
 		        exit()
@@ -100,6 +152,7 @@ object QuickShake {
 
     val totalCandidates = perReaderTotals.foldLeft (0) { (total, readerTotal) => total + readerTotal.get }
 
+    //Thread.sleep(10000)
     logger.debug("Waiting until all classes have been seen")
     progressGate ! ProgressGate.Candidates(totalCandidates)
     progressGate !? ProgressGate.WaitUntilAllSeen
@@ -107,7 +160,7 @@ object QuickShake {
     logger.debug("Draining waiters")
     decider ! KeepClassDecider.DrainWaiters
     decider ! KeepClassDecider.End
-
+    //Thread.sleep(1000)
     logger.debug("Waiting until all classes have been processed")
     progressGate !? ProgressGate.WaitUntilAllProcessed
     progressGate !? ProgressGate.GetTotals match {
@@ -119,7 +172,7 @@ object QuickShake {
     progressGate ! ProgressGate.End
 
     dataWriter ! ClassDataWriter.End
-    
+    exitHandler ! ExitHandler.End
   }
 
 }
@@ -135,101 +188,4 @@ class Options(args: Array[String]) {
     case "warning" => LogLevel.Warning
     case "error" => LogLevel.Error
   }
-}
-
-object ProgressGate {
-  case class Candidates(total: Int)
-  case object OneStarted
-  case object OneKept
-  case object OneDiscarded
-  case object OneWaiting
-  case object OneResumed
-  case object WaitUntilAllSeen
-  case object AllSeen
-  case object WaitUntilAllProcessed
-  case object AllProcessed
-  case object GetTotals
-  case class Totals(candidates: Int, kept: Int, discarded: Int)
-  case object End
-}
-
-class ProgressGate extends Actor {
-  def act() {
-    import actors.OutputChannel
-    import ProgressGate._
-
-    var candidates: Option[Int] = None
-    var started = 0
-    var kept = 0
-    var discarded = 0
-    var waiting = 0
-    def processed = kept + discarded
-
-    var seenWaiter: Option[OutputChannel[Any]] = None
-    var processedWaiter: Option[OutputChannel[Any]] = None
-
-    def checkConditions() {
-      //println(candidates + " " + started + " " + kept + " " + discarded + " " + waiting)
-      candidates match {
-	case Some(candidates) =>
-	  assert(started <= candidates)
-	  if (processed == candidates) {
-	    seenWaiter match {
-	      case Some(actor) =>
-		actor ! AllSeen
-		seenWaiter = None
-	      case None => ()
-	    }
-	    processedWaiter match {
-	      case Some(actor) =>
-		actor ! AllProcessed
-		processedWaiter = None
-	      case None => ()
-	    }
-	  } else if (started == candidates && kept + waiting == candidates) {
-	    seenWaiter match {
-	      case Some(actor) =>
-		actor ! AllSeen
-		seenWaiter = None
-	      case None => ()
-	  }
-	}
-	case None => ()
-      }
-    }
-
-    loop {
-      react {
-	case Candidates(total) =>
-	  candidates = Some(total)
-	  checkConditions()
-	case OneStarted =>
-	  started += 1
-	  checkConditions()
-	case OneKept => 
-	  kept += 1
-	  checkConditions()
-	case OneDiscarded =>
-	  discarded += 1
-	  checkConditions()
-	case OneWaiting =>
-	  waiting += 1
-	  checkConditions()
-	case OneResumed =>
-	  waiting -= 1
-	  checkConditions()
-	case WaitUntilAllSeen =>
-	  seenWaiter = Some(sender)
-	  checkConditions()
-	case WaitUntilAllProcessed =>
-	  processedWaiter = Some(sender)
-	  checkConditions()
-	case GetTotals =>
-	  assert(candidates isDefined)
-	  reply(Totals(candidates.get, kept, discarded))
-	case End => exit()
-      }
-    }
-  }
-
 }
