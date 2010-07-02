@@ -35,8 +35,11 @@ class ProgressGate extends Actor {
     var seenWaiter: Option[OutputChannel[Any]] = None
     var processedWaiter: Option[OutputChannel[Any]] = None
 
+    def printStatus() {
+      println(candidates + " " + started + " " + kept + " " + discarded + " " + waiting + " " + live)
+    }
+
     def checkConditions() {
-      //println(candidates + " " + started + " " + kept + " " + discarded + " " + waiting + " " + live)
       candidates match {
 	case Some(candidates) =>
 	  assert(started <= candidates)
@@ -54,6 +57,7 @@ class ProgressGate extends Actor {
 	      case None => ()
 	    }
 	  } else if (started == candidates && live == 0) {
+	    printStatus()
 	    seenWaiter match {
 	      case Some(actor) =>
 		actor ! AllSeen

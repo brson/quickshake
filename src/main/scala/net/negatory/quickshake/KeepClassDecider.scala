@@ -52,7 +52,6 @@ class KeepClassDecider(
       requester ! Kept
       requesterMap -= className
     }
-    //reply(())
   }
 
   private def decide(className: ClassName, preWakeAction: () => Unit) {

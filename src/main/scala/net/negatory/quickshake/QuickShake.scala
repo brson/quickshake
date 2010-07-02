@@ -82,8 +82,8 @@ object QuickShake {
       decoder.start
 
       actor {
-
         decoder ! ClassDecoder.GetName
+
         react {
           case ClassDecoder.Name(className) =>
 	    logger.debug("Decoded name of class " + className)
@@ -103,9 +103,7 @@ object QuickShake {
 		    react {
 		      case ClassDecoder.Dependency(depName) =>
 			decider ! KeepClassDecider.Keep(depName)
-			/*react {
-			  case _ => ()
-			}*/
+
 		      case ClassDecoder.End =>
 			progressGate ! ProgressGate.OneKept
 		        exit()
@@ -160,7 +158,7 @@ object QuickShake {
     logger.debug("Draining waiters")
     decider ! KeepClassDecider.DrainWaiters
     decider ! KeepClassDecider.End
-    //Thread.sleep(1000)
+
     logger.debug("Waiting until all classes have been processed")
     progressGate !? ProgressGate.WaitUntilAllProcessed
     progressGate !? ProgressGate.GetTotals match {
