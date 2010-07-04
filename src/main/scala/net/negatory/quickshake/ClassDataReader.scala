@@ -3,10 +3,11 @@ package net.negatory.quickshake
 import actors.Actor
 import actors.Actor._
 import java.io.{File, FileInputStream}
+import org.apache.commons.io.IOUtils.closeQuietly
 
 object ClassDataReader {
   case object Search
-  case class Visit(origFile: File, classData: Array[Byte])
+  case class Visit(origFile: Option[File], classData: Array[Byte])
   case object End
 }
 
@@ -28,7 +29,7 @@ class DirectoryDataReader(root: File) extends ClassDataReader with Logging {
     debug("Searching for class files in " + root)
     for (classFile <- allClassFiles(root)) {
       debug("Found " + classFile)
-      reply(Visit(classFile, loadClassData(classFile)))
+      reply(Visit(Some(classFile), loadClassData(classFile)))
     }
     reply(End)
   }
@@ -51,16 +52,63 @@ class DirectoryDataReader(root: File) extends ClassDataReader with Logging {
   private def loadClassData(file: File): Array[Byte] = {
     val stream = new FileInputStream(file)
     try {
+
       toByteArray(stream)
     }
     finally {
-      stream.close
+      closeQuietly(stream)
     }
   }
 }
 
 class JarDataReader(jar: File) extends ClassDataReader with Logging {
 
+  import java.io.{InputStream, BufferedInputStream}
+  import java.util.jar.JarInputStream
+  import ClassDataReader._
+
   def act() {
+    react {
+      case Search => search()
+    }
+  }
+
+  def search() {
+    debug("Beginning search of jar file " + jar.getPath)
+
+    val jarStream = new JarInputStream(
+      new BufferedInputStream(
+	new FileInputStream(jar)
+      )
+    )
+    try {
+
+      var entry = jarStream.getNextEntry()
+      while(entry != null) {
+
+	debug("Reading jar entry " + entry.getName)
+
+	if (entry.getName().endsWith(".class")) {
+	  require(entry.getSize <= Math.MAX_INT, "Can't support this ridiculously huge class")
+	  val classData = new Array[Byte](entry.getSize.toInt)
+	  val classDataSize = classData.length
+	  def readClass(classData: Array[Byte], start: Int): Unit = {
+	    val bytesLeft = classDataSize - start
+	    val read = jarStream.read(classData, start, bytesLeft)
+	    if (read < bytesLeft) readClass(classData, start + read)
+	    else ()
+	  }
+	  readClass(classData, 0)
+	  reply(Visit(None, classData))
+	}
+	
+	entry = jarStream.getNextEntry()
+      }
+      
+    } finally {
+      closeQuietly(jarStream)
+      reply(End)
+    }
+	
   }
 }

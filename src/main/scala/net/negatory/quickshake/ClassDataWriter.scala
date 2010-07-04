@@ -6,7 +6,7 @@ import java.io.File
 
 object ClassDataWriter {
   case class AddClass(
-    origFile: File,
+    origFile: Option[File],
     className: ClassName,
     classData: Array[Byte]
     )
@@ -27,21 +27,26 @@ class ClassDataWriter(outputDir: File) extends Actor with Logging {
   }
 
   private def addClass(
-    origFile: File, 
+    origFile: Option[File], 
     className: ClassName,
     classData: Array[Byte]
   ) {
+    import org.apache.commons.io.FileUtils
+    import FileUtils.{forceMkdir, copyFileToDirectory, writeByteArrayToFile}
+
     val filePath = new File(outputDir, className.filePath)
 
     debug("Writing " + className + " to " + filePath)
 
     val dirPath = filePath.getParentFile
     assert(dirPath != null)
-    import org.apache.commons.io.FileUtils
-    import FileUtils.{forceMkdir, copyFileToDirectory}
+
     forceMkdir(dirPath)
 
-    copyFileToDirectory(origFile, dirPath)
+    origFile match {
+      case Some(file) => copyFileToDirectory(file, dirPath)
+      case None => writeByteArrayToFile(filePath, classData)
+    }
   }
 }
 

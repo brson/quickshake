@@ -53,7 +53,7 @@ object QuickShake {
       new ProgressGate with ShakeMixin
     }.start()
 
-    def decode(origFile: File, classData: Array[Byte]) {
+    def decode(origFile: Option[File], classData: Array[Byte]) {
       val decoder = new ClassDecoder(classData) with ShakeMixin
       decoder.start
 
