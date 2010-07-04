@@ -23,7 +23,7 @@ object QuickShake {
 
     logger.info("inputs:")
     options.inputs foreach {dir => logger.info(dir.toString)}
-    logger.info("outdir: " + options.outdir)
+    logger.info("output: " + options.output)
     logger.info("keepNamespaces:")
     options.keepNamespaces foreach {ns => logger.info(ns)}
 
@@ -46,7 +46,9 @@ object QuickShake {
       }.start()
     }
     val dataWriter = {
-      new ClassDataWriter(options.outdir) with ShakeMixin
+      val isJar = options.output.getAbsolutePath.endsWith(".jar")
+      if (isJar) new JarDataWriter(options.output) with ShakeMixin
+      else new DirectoryDataWriter(options.output) with ShakeMixin
     }.start()
     val decider = {
       new KeepClassDecider(options.keepNamespaces) with ShakeMixin

@@ -13,7 +13,9 @@ object ClassDataWriter {
   case object End
 }
 
-class ClassDataWriter(outputDir: File) extends Actor with Logging {
+trait ClassDataWriter extends Actor
+
+class DirectoryDataWriter(outputDir: File) extends ClassDataWriter with Logging {
   
   def act() {
     import ClassDataWriter._
@@ -50,3 +52,7 @@ class ClassDataWriter(outputDir: File) extends Actor with Logging {
   }
 }
 
+class JarDataWriter(jar: File) extends ClassDataWriter with Logging {
+  def act() {
+  }
+}
