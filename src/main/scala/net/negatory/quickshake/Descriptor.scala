@@ -36,7 +36,7 @@ class ClassName(val raw: String) {
   }
 
   def filePath = {
-    internalized + ".scala"
+    internalized + ".class"
   }
 
   override def equals(that: Any) = that match {
