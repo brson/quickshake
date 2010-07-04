@@ -10,20 +10,22 @@ object QuickShake {
 
   def main(args: Array[String]) {
 
-    val options = new Options(args)
-    val logger = new ConsoleLogger(options.logLevel)
-    logger.info("input:")
-    options.input foreach {dir => logger.info(dir.toString)}
+    val options = new CommandLineOptions(args)
+    runShake(options, (logLevel) => new ConsoleLogger(logLevel))
+  }
+
+  def runShake(
+    options: Options,
+    loggerFactory: (LogLevel.LogLevel) => Logger
+  ) {
+    val logger = loggerFactory(options.logLevel)
+    import logger.LoggerMixin
+
+    logger.info("inputs:")
+    options.inputs foreach {dir => logger.info(dir.toString)}
     logger.info("outdir: " + options.outdir)
     logger.info("keepNamespaces:")
     options.keepNamespaces foreach {ns => logger.info(ns)}
-
-    runShake(options, logger)
-  }
-
-  def runShake(options: Options, logger: Logger) {
-
-    import logger.LoggerMixin
 
     val exitHandler = new ExitHandler with LoggerMixin
     exitHandler.start()
@@ -32,7 +34,7 @@ object QuickShake {
 
     trait ShakeMixin extends LoggerMixin with TrapMixin
 
-    val dataReaders = options.input map {
+    val dataReaders = options.inputs map {
       (in: File) => {
 	if (in.isDirectory) {
 	  new DirectoryDataReader(in) with ShakeMixin
@@ -153,9 +155,16 @@ object QuickShake {
 
 }
 
-class Options(args: Array[String]) {
+trait Options {
+  val inputs: List[File]
+  val outdir: File
+  val keepNamespaces: List[String]
+  val logLevel: LogLevel.LogLevel
+}
 
-  val input = (args(0) split ":").toList map { d => new File(d) }
+class CommandLineOptions(args: Array[String]) extends Options {
+
+  val inputs = (args(0) split ":").toList map { d => new File(d) }
   val outdir = new File(args(1))
   val keepNamespaces = (args(2) split ":").toList
   val logLevel = args(3) match {
