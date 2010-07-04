@@ -25,7 +25,8 @@ class ExitHandler extends Actor with Logging {
     react {
       case Watch(actor) => link(actor); reply(())
       case Exit(from, ex: Exception) => {
-	error("Actor failed: " + ex.toString)
+	ex.printStackTrace
+	error("Actor failed: " + ex)
       }
       case Exit(from, _) => ()
       case End => exit()
