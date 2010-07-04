@@ -54,5 +54,29 @@ class DirectoryDataWriter(outputDir: File) extends ClassDataWriter with Logging 
 
 class JarDataWriter(jar: File) extends ClassDataWriter with Logging {
   def act() {
+    import ClassDataWriter._
+    import org.apache.commons.io.IOUtils.closeQuietly
+    import java.util.jar.JarOutputStream
+    import java.util.zip.ZipEntry
+    import java.io.{BufferedOutputStream, FileOutputStream}
+
+    val jarOutput = new JarOutputStream(
+      new BufferedOutputStream(
+	new FileOutputStream(jar)
+      )
+    )
+
+    loop {
+      react {
+	case AddClass(origFile, className, classData) =>
+	  val entry = new ZipEntry(className.filePath)
+	  jarOutput.putNextEntry(entry)
+	  jarOutput.write(classData)
+	case End =>
+	  // TODO: This isn't enough to guarantee that jarOutput gets closed
+	  closeQuietly(jarOutput)
+	  exit()
+      }
+    }
   }
 }
