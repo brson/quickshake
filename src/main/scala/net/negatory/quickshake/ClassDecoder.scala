@@ -8,7 +8,7 @@ object ClassDecoder {
   case class Name(className: ClassName)
   case object Discard
   case object FindDependencies
-  case class Dependency(className: ClassName)
+  case class ClassDependency(className: ClassName)
   case object End
 }
 
@@ -57,6 +57,7 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
     }
   }
 
+  // TODO: Find methods as well
   private def findDependencies() {
     val visitor = new EmptyVisitor {
       override def visit(
@@ -113,7 +114,7 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
 	value: Any
       ): FieldVisitor = {
 	reportDependencies(new Descriptor(desc))
-	
+
 	new EmptyVisitor {
 	  override def visitAnnotation(
 	    desc: String,
@@ -136,6 +137,7 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
 	if (exceptions != null ) {
 	  exceptions foreach { e => reportDependency(new ClassName(e)) }
 	}
+
 	new EmptyVisitor {
 	  override def visitAnnotation(
 	    desc: String,
@@ -146,6 +148,10 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
 	  }
 
 	  override def visitAnnotationDefault() = new DecoderAnnotationVisitor
+
+	  override  def visitTypeInsn(opcode: Int, `type`: String) {
+	    // TODO
+	  }
 
 	  override def visitFieldInsn(
 	    opcode: Int,
@@ -206,7 +212,7 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
     if (!(cache contains depName)) {
       debug("Reporting dependency " + depName)
       cache += depName
-      reply(Dependency(depName))
+      reply(ClassDependency(depName))
     }
   }
 

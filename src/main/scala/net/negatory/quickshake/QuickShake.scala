@@ -77,11 +77,12 @@ object QuickShake {
 		  progressGate ! ProgressGate.OneWaiting
 		case KeepClassDecider.Kept =>
 		  logger.debug("Keeping " + className)
+		  // TODO: This must only happen after we know which methods to keep
 	          dataWriter ! ClassDataWriter.AddClass(origFile, className, classData)
 		  decoder ! ClassDecoder.FindDependencies
 		  loop {
 		    react {
-		      case ClassDecoder.Dependency(depName) =>
+		      case ClassDecoder.ClassDependency(depName) =>
 			decider ! KeepClassDecider.Keep(depName)
 			react {
 			  case KeepClassDecider.DoneKeeping => ()
