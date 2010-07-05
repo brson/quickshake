@@ -150,7 +150,11 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
 	  override def visitAnnotationDefault() = new DecoderAnnotationVisitor
 
 	  override  def visitTypeInsn(opcode: Int, `type`: String) {
-	    // TODO
+	    if (ClassName.rawIsNotADescriptor(`type`)) {
+	      reportDependency(new ClassName(`type`))
+	    } else {
+	      reportDependencies(new Descriptor(`type`))
+	    }
 	  }
 
 	  override def visitFieldInsn(
