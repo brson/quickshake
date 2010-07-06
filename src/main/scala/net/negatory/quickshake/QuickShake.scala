@@ -77,9 +77,8 @@ object QuickShake {
 		  progressGate ! ProgressGate.OneWaiting
 		case KeepClassDecider.Kept =>
 		  logger.debug("Keeping " + className)
-		  // TODO: This must only happen after we know which methods to keep
-	          dataWriter ! ClassDataWriter.AddClass(origFile, className, classData)
 		  decoder ! ClassDecoder.FindDependencies
+		  var methodsOutstanding = 0
 		  loop {
 		    react {
 		      case ClassDecoder.ClassDependency(depName) =>
@@ -88,8 +87,10 @@ object QuickShake {
 			  case KeepClassDecider.DoneKeeping => ()
 			}
 		      case ClassDecoder.Method(methodName, classDeps, methodDeps) =>
+			methodsOutstanding += 1
+			val methodDoneNotifyActor = self
 			actor {
-			  decider ! KeepClassDecider.DecideOnMethod(className, methodName, () => ())
+			  decider ! KeepClassDecider.DecideOnMethod(className, methodName)
 			  loop {
 			    react {
 			      case KeepClassDecider.Waiting => ()
@@ -109,15 +110,26 @@ object QuickShake {
 				    case KeepClassDecider.DoneKeeping => ()
 				  }
 				} andThen {
+				  methodDoneNotifyActor ! 'done
 				  exit()
 				}
-			      case KeepClassDecider.Discarded => exit()
+			      case KeepClassDecider.Discarded =>
+				methodDoneNotifyActor ! 'done
+				exit()
 			    }
 			  }
 			}
 		      case ClassDecoder.End =>
-			progressGate ! ProgressGate.OneKept
-		        exit()
+			// TODO Wait for all method actors to finish
+			loopWhile (methodsOutstanding > 0) {
+			  react {
+			    case 'done => methodsOutstanding -= 1
+			  }
+			} andThen {
+			  progressGate ! ProgressGate.OneKept
+			  dataWriter ! ClassDataWriter.AddClass(origFile, className, classData)
+		          exit()
+			}
 		    }
 		  }
 		case KeepClassDecider.Discarded => 

@@ -8,7 +8,7 @@ object KeepClassDecider {
   case class KeepMethod(methodName: String)
   case object DoneKeeping
   case class DecideOnClass(className: ClassName, preWakeAction: () => Unit)
-  case class DecideOnMethod(className: ClassName, methodName: String, preWakeAction: () => Unit)
+  case class DecideOnMethod(className: ClassName, methodName: String)
   case object Kept
   case object Waiting
   case object Discarded
@@ -33,8 +33,8 @@ class KeepClassDecider(
 	case KeepMethod(methodName) => keepMethod(methodName)
 	case DecideOnClass(className, preWakeAction) =>
 	  decideOnClass(className, preWakeAction)
-	case DecideOnMethod(className, methodName, preWakeAction) =>
-	  decideOnMethod(className, methodName, preWakeAction)
+	case DecideOnMethod(className, methodName) =>
+	  decideOnMethod(className, methodName)
 	case DrainWaiters => drainRequesters()
 	case End => 
 	  debug("Decider exiting")
@@ -93,8 +93,7 @@ class KeepClassDecider(
 
   private def decideOnMethod(
     className: ClassName,
-    methodName: String,
-    preWakeAction: () => Unit
+    methodName: String
   ) {
     debug("Deciding whether to keep method " + methodName)
     if (isInKeptNs(className)) {
