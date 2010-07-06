@@ -8,7 +8,7 @@ object KeepClassDecider {
   case class KeepMethod(methodName: String)
   case object DoneKeeping
   case class DecideOnClass(className: ClassName, preWakeAction: () => Unit)
-  case class DecideOnMethod(className: ClassName, methodName: String)
+  case class DecideOnMethod(className: ClassName, methodName: String, preWakeAction: () => Unit)
   case object Kept
   case object Waiting
   case object Discarded
@@ -33,8 +33,8 @@ class KeepClassDecider(
 	case KeepMethod(methodName) => keepMethod(methodName)
 	case DecideOnClass(className, preWakeAction) =>
 	  decideOnClass(className, preWakeAction)
-	case DecideOnMethod(className, methodName) =>
-	  decideOnMethod(className, methodName)
+	case DecideOnMethod(className, methodName, preWakeAction) =>
+	  decideOnMethod(className, methodName, preWakeAction)
 	case DrainWaiters => drainRequesters()
 	case End => 
 	  debug("Decider exiting")
@@ -49,6 +49,7 @@ class KeepClassDecider(
   private val keepSet = new HashSet[ClassName]
   private val requesterMap = new HashMap[ClassName, Pair[OutputChannel[Any], () => Unit]]
   private val methodSet = new HashSet[String]
+  private val methodRequesterMap = new HashMap[String, List[Pair[OutputChannel[Any], () => Unit]]]
   
   private def keepClass(className: ClassName) {
 
@@ -64,6 +65,17 @@ class KeepClassDecider(
   }
 
   private def keepMethod(methodName: String) {
+
+    methodSet += methodName
+
+    if (methodRequesterMap contains methodName) {
+      val requesterList = methodRequesterMap(methodName)
+      for ((requester, preWakeAction) <- requesterList) {
+	preWakeAction()
+	requester ! Kept
+      }
+      methodRequesterMap -= methodName
+    }
     reply(DoneKeeping)
   }
 
@@ -93,7 +105,8 @@ class KeepClassDecider(
 
   private def decideOnMethod(
     className: ClassName,
-    methodName: String
+    methodName: String,
+    preWakeAction: () => Unit
   ) {
     debug("Deciding whether to keep method " + methodName)
     if (isInKeptNs(className)) {
@@ -102,6 +115,11 @@ class KeepClassDecider(
       sender ! Kept
     } else {
       sender ! Discarded
+      /*sender ! Waiting
+      val currentList = if (methodRequesterMap contains methodName) methodRequesterMap(methodName)
+			else Nil
+      methodRequesterMap put (methodName, (sender, preWakeAction) :: currentList)
+      */
     }
   }
 

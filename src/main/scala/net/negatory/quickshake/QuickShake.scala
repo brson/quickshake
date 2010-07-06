@@ -89,11 +89,13 @@ object QuickShake {
 		      case ClassDecoder.Method(methodName, classDeps, methodDeps) =>
 			methodsOutstanding += 1
 			val methodDoneNotifyActor = self
+			val onResume = () => methodDoneNotifyActor ! 'oneResumed
 			actor {
-			  decider ! KeepClassDecider.DecideOnMethod(className, methodName)
+			  decider ! KeepClassDecider.DecideOnMethod(className, methodName, onResume)
 			  loop {
 			    react {
-			      case KeepClassDecider.Waiting => ()
+			      case KeepClassDecider.Waiting =>
+				methodDoneNotifyActor ! 'oneWaiting
 			      case KeepClassDecider.Kept =>
 				var remainingClassDeps = classDeps
 				var remainingMethodDeps = methodDeps
