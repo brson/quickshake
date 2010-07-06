@@ -4,9 +4,11 @@ import actors.Actor
 import actors.Actor._
 
 object KeepClassDecider {
-  case class Keep(className: ClassName)
+  case class KeepClass(className: ClassName)
+  case class KeepMethod(methodName: String)
   case object DoneKeeping
-  case class Decide(className: ClassName, preWakeAction: () => Unit)
+  case class DecideOnClass(className: ClassName, preWakeAction: () => Unit)
+  case class DecideOnMethod(className: ClassName, methodName: String, preWakeAction: () => Unit)
   case object Kept
   case object Waiting
   case object Discarded
@@ -27,8 +29,12 @@ class KeepClassDecider(
   def act() {
     loop {
       react {
-	case Keep(className) => keep(className)
-	case Decide(className, preWakeAction) => decide(className, preWakeAction)
+	case KeepClass(className) => keepClass(className)
+	case KeepMethod(methodName) => keepMethod(methodName)
+	case DecideOnClass(className, preWakeAction) =>
+	  decideOnClass(className, preWakeAction)
+	case DecideOnMethod(className, methodName, preWakeAction) =>
+	  decideOnMethod(className, methodName, preWakeAction)
 	case DrainWaiters => drainRequesters()
 	case End => 
 	  debug("Decider exiting")
@@ -42,8 +48,9 @@ class KeepClassDecider(
 
   private val keepSet = new HashSet[ClassName]
   private val requesterMap = new HashMap[ClassName, Pair[OutputChannel[Any], () => Unit]]
+  private val methodSet = new HashSet[String]
   
-  private def keep(className: ClassName) {
+  private def keepClass(className: ClassName) {
 
     keepSet += className
 
@@ -56,16 +63,21 @@ class KeepClassDecider(
     reply(DoneKeeping)
   }
 
-  private def decide(className: ClassName, preWakeAction: () => Unit) {
+  private def keepMethod(methodName: String) {
+    reply(DoneKeeping)
+  }
+
+  private def isInKeptNs(className: ClassName) = internalKeepNamespaces.foldLeft (false) {
+    (res, ns) =>
+      res || (className isInNamespace ns)
+  }
+
+  private def decideOnClass(className: ClassName, preWakeAction: () => Unit) {
 
     debug("Deciding whether to keep " + className)
 
     // Check if this is in a preserved namespace
-    val isInKeptNs = internalKeepNamespaces.foldLeft (false) {
-      (res, ns) =>
-	res || (className isInNamespace ns)
-    }
-    if (isInKeptNs) {
+    if (isInKeptNs(className)) {
       sender ! Kept
     }
     // Check if we've already been told to keep it
@@ -76,6 +88,21 @@ class KeepClassDecider(
     else {
       sender ! Waiting
       requesterMap put (className, (sender, preWakeAction))
+    }
+  }
+
+  private def decideOnMethod(
+    className: ClassName,
+    methodName: String,
+    preWakeAction: () => Unit
+  ) {
+    debug("Deciding whether to keep method " + methodName)
+    if (isInKeptNs(className)) {
+      sender ! Kept
+    } else if (methodSet contains methodName) {
+      sender ! Kept
+    } else {
+      sender ! Discarded
     }
   }
 

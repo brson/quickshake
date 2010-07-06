@@ -68,7 +68,7 @@ object QuickShake {
           case ClassDecoder.Name(className) =>
 	    logger.debug("Decoded name of class " + className)
 	    val resume = () => progressGate ! ProgressGate.OneResumed
-	    decider ! KeepClassDecider.Decide(className, resume)
+	    decider ! KeepClassDecider.DecideOnClass(className, resume)
 	    progressGate ! ProgressGate.OneStarted
 	    loop {
 	      react {
@@ -83,11 +83,38 @@ object QuickShake {
 		  loop {
 		    react {
 		      case ClassDecoder.ClassDependency(depName) =>
-			decider ! KeepClassDecider.Keep(depName)
+			decider ! KeepClassDecider.KeepClass(depName)
 			react {
 			  case KeepClassDecider.DoneKeeping => ()
 			}
-
+		      case ClassDecoder.Method(methodName, classDeps, methodDeps) =>
+			actor {
+			  decider ! KeepClassDecider.DecideOnMethod(className, methodName, () => ())
+			  loop {
+			    react {
+			      case KeepClassDecider.Waiting => ()
+			      case KeepClassDecider.Kept =>
+				var remainingClassDeps = classDeps
+				var remainingMethodDeps = methodDeps
+				loopWhile (remainingClassDeps != Nil) {
+				  decider ! KeepClassDecider.KeepClass(remainingClassDeps.head)
+				  remainingClassDeps = remainingClassDeps.tail
+				  react {
+				    case KeepClassDecider.DoneKeeping => ()
+				  }
+				} andThen loopWhile (remainingMethodDeps != Nil) {
+				  decider ! KeepClassDecider.KeepMethod(remainingMethodDeps.head)
+				  remainingMethodDeps = remainingMethodDeps.tail
+				  react {
+				    case KeepClassDecider.DoneKeeping => ()
+				  }
+				} andThen {
+				  exit()
+				}
+			      case KeepClassDecider.Discarded => exit()
+			    }
+			  }
+			}
 		      case ClassDecoder.End =>
 			progressGate ! ProgressGate.OneKept
 		        exit()

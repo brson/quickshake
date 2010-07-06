@@ -8,6 +8,7 @@ object ClassDecoder {
   case class Name(className: ClassName)
   case object Discard
   case object FindDependencies
+  case class Method(methodName: String, classDeps: List[ClassName], methodDeps: List[String])
   case class ClassDependency(className: ClassName)
   case object End
 }
@@ -68,21 +69,21 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
 	superName: String,
 	interfaces: Array[String]
       ) {
-	reportDependency(new ClassName(superName))
+	reportClassDependency(new ClassName(superName))
 	interfaces foreach {
-	  (i: String) => reportDependency(new ClassName(superName))
+	  (i: String) => reportClassDependency(new ClassName(superName))
 	}
       }
 
       class DecoderAnnotationVisitor extends EmptyVisitor {
 	override def visitEnum(name: String, desc: String, value: String) {
-	  reportDependencies(new Descriptor(desc))
+	  reportClassDependencies(new Descriptor(desc))
 	}
 
 	override def visitAnnotation(
 	  name: String, desc: String
 	): AnnotationVisitor = {
-	  reportDependencies(new Descriptor(desc))
+	  reportClassDependencies(new Descriptor(desc))
 	  new DecoderAnnotationVisitor
 	}
       }
@@ -92,7 +93,7 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
 	visible: Boolean
       ): AnnotationVisitor = {
 
-	reportDependencies(new Descriptor(desc))
+	reportClassDependencies(new Descriptor(desc))
 
 	new DecoderAnnotationVisitor
       }
@@ -103,7 +104,7 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
 	innerName: String,
 	access: Int
       ) {
-	reportDependency(new ClassName(name))
+	reportClassDependency(new ClassName(name))
       }
 
       override def visitField(
@@ -113,14 +114,14 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
 	signature: String,
 	value: Any
       ): FieldVisitor = {
-	reportDependencies(new Descriptor(desc))
+	reportClassDependencies(new Descriptor(desc))
 
 	new EmptyVisitor {
 	  override def visitAnnotation(
 	    desc: String,
 	    visible: Boolean
 	  ): AnnotationVisitor = {
-	    reportDependencies(new Descriptor(desc))
+	    reportClassDependencies(new Descriptor(desc))
 	    new DecoderAnnotationVisitor
 	  }
 	}
@@ -133,9 +134,32 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
 	signature: String,
 	exceptions: Array[String]
       ): MethodVisitor = {
-	reportDependencies(new Descriptor(desc))
+	val methodName = name
+
+	var classDeps: List[ClassName] = Nil
+	var methodDeps: List[String] = Nil
+
+	def reportClassDependency(className: ClassName) {
+	  classDeps = className :: classDeps
+	}
+
+	def reportClassDependencies(desc: Descriptor) {
+	  classDeps = desc.classNames ::: classDeps
+	}
+
+	def reportMethodDependency(name: String) {
+	  methodDeps = name :: methodDeps
+	}
+
+	def reportNameOrDescriptor(s: String) = if (ClassName.rawIsNotADescriptor(s)) {
+	  reportClassDependency(new ClassName(s))
+	} else {
+	  reportClassDependencies(new Descriptor(s))
+	}
+
+	reportClassDependencies(new Descriptor(desc))
 	if (exceptions != null ) {
-	  exceptions foreach { e => reportDependency(new ClassName(e)) }
+	  exceptions foreach { e => reportClassDependency(new ClassName(e)) }
 	}
 
 	new EmptyVisitor {
@@ -143,17 +167,11 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
 	    desc: String,
 	    visible: Boolean
 	  ): AnnotationVisitor = {
-	    reportDependencies(new Descriptor(desc))
+	    reportClassDependencies(new Descriptor(desc))
 	    new DecoderAnnotationVisitor
 	  }
 
 	  override def visitAnnotationDefault() = new DecoderAnnotationVisitor
-
-	  def reportNameOrDescriptor(s: String) = if (ClassName.rawIsNotADescriptor(s)) {
-	    reportDependency(new ClassName(s))
-	  } else {
-	    reportDependencies(new Descriptor(s))
-	  }
 
 	  override  def visitTypeInsn(opcode: Int, `type`: String) = reportNameOrDescriptor(`type`)
 
@@ -163,7 +181,7 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
 	    name: String,
 	    desc: String
 	  ) {
-	    reportDependencies(new Descriptor(desc))
+	    reportClassDependencies(new Descriptor(desc))
 	  }
 
 	  override def visitMethodInsn(
@@ -175,11 +193,12 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
 	    if (owner != Opcodes.INVOKEDYNAMIC_OWNER) {
 	      reportNameOrDescriptor(owner)
 	    }
-	    reportDependencies(new Descriptor(desc))
+	    reportClassDependencies(new Descriptor(desc))
+	    reportMethodDependency(name)
 	  }
 
 	  override def visitMultiANewArrayInsn(desc: String, dims: Int) {
-	    reportDependencies(new Descriptor(desc))
+	    reportClassDependencies(new Descriptor(desc))
 	  }
 
 	  override def visitTryCatchBlock(
@@ -188,7 +207,7 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
 	    handler: Label,
 	    `type`: String
 	  ) {
-	    if (`type` != null) reportDependency(new ClassName(`type`))
+	    if (`type` != null) reportClassDependency(new ClassName(`type`))
 	  }
 
 	  override def visitLocalVariable(
@@ -199,9 +218,12 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
 	    end: Label,
 	    index: Int
 	  ) {
-	    reportDependencies(new Descriptor(desc))
+	    reportClassDependencies(new Descriptor(desc))
 	  }
 
+	  override def visitEnd() {
+	    sender ! Method(methodName, classDeps, methodDeps)
+	  }
 	}
       }
 
@@ -215,7 +237,7 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
   import collection.mutable.HashSet
   val cache = new HashSet[ClassName]
     
-  private def reportDependency(depName: ClassName) {
+  private def reportClassDependency(depName: ClassName) {
     if (!(cache contains depName)) {
       debug("Reporting dependency " + depName)
       cache += depName
@@ -223,8 +245,8 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
     }
   }
 
-  private def reportDependencies(desc: Descriptor) {
-    desc.classNames foreach { reportDependency _ }
+  private def reportClassDependencies(desc: Descriptor) {
+    desc.classNames foreach { reportClassDependency _ }
   }
-  
+
 }
