@@ -80,6 +80,10 @@ object QuickShake {
 		case KeepClassDecider.Kept =>
 		  logger.debug("Keeping " + className)
 		  decoder ! ClassDecoder.FindDependencies
+		  // These will be used to track the set of methods
+		  // on this class that need to be retained
+		  case class KeepMethod(methodName: String)
+		  case object DiscardMethod
 		  loop {
 		    react {
 		      case ClassDecoder.ClassDependency(depName) =>
@@ -89,6 +93,7 @@ object QuickShake {
 			}
 		      case ClassDecoder.Method(methodName, classDeps, methodDeps) =>
 			methods += 1
+			val methodAccumulator = self
 			actor {
 			  methodProgressGate ! ProgressGate.OneStarted
 			  val onResume = () => methodProgressGate ! ProgressGate.OneResumed
@@ -98,6 +103,7 @@ object QuickShake {
 			      case KeepClassDecider.Waiting => ()
 				methodProgressGate ! ProgressGate.OneBlocked
 			      case KeepClassDecider.Kept =>
+				methodAccumulator ! KeepMethod(methodName)
 				var remainingClassDeps = classDeps
 				var remainingMethodDeps = methodDeps
 				loopWhile (remainingClassDeps != Nil) {
@@ -117,6 +123,7 @@ object QuickShake {
 				  exit()
 				}
 			      case KeepClassDecider.Discarded =>
+				methodAccumulator ! DiscardMethod
 				methodProgressGate ! ProgressGate.OneComplete
 				exit()
 			    }
@@ -135,11 +142,31 @@ object QuickShake {
 			      case ProgressGate.AllComplete => ()
 				logger.debug("Methods complete")
 				progressGate ! ProgressGate.OneResumed
-				// Wait for methods
 				methodProgressGate ! ProgressGate.End
-				progressGate ! ProgressGate.OneComplete
-				dataWriter ! ClassDataWriter.AddClass(origFile, className, classData)
-				exit()
+				// Get the list of methods to keep
+				import collection.mutable.HashSet
+				var methodsDecided = 0
+				val methodsKept = new HashSet[String] {
+				  // Make sure there's plenty of room to hash
+				  // those methods and never reallocate
+				  // TODO: Find out if this is worth doing
+				  override def initialSize = methods * 3
+				}
+				loopWhile(methodsDecided < methods) {
+				  react {
+				    val f: PartialFunction[Any, Unit] = {
+				      case KeepMethod(methodName) =>
+					methodsKept += methodName
+				      case DiscardMethod => ()
+				    }
+
+				    f andThen { _ => methodsDecided += 1 }
+				  }
+				} andThen {
+				  dataWriter ! ClassDataWriter.AddClass(origFile, className, classData)
+				  progressGate ! ProgressGate.OneComplete
+				  exit()
+				}
 			    }
 			}
 		    }
