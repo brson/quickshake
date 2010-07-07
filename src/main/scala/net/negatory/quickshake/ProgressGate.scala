@@ -6,16 +6,13 @@ import actors.Actor._
 object ProgressGate {
   case class Candidates(total: Int)
   case object OneStarted
-  case object OneKept
-  case object OneDiscarded
+  case object OneProcessed
   case object OneWaiting
   case object OneResumed
   case object WaitUntilAllSeen
   case object AllSeen
   case object WaitUntilAllProcessed
   case object AllProcessed
-  case object GetTotals
-  case class Totals(candidates: Int, kept: Int, discarded: Int)
   case object End
 }
 
@@ -26,11 +23,9 @@ class ProgressGate extends Actor {
 
     var candidates: Option[Int] = None
     var started = 0
-    var kept = 0
-    var discarded = 0
     var waiting = 0
-    def processed = kept + discarded
-    def live = started - kept - discarded - waiting
+    var processed = 0
+    def live = started - processed - waiting
 
     var seenWaiter: Option[OutputChannel[Any]] = None
     var processedWaiter: Option[OutputChannel[Any]] = None
@@ -72,11 +67,8 @@ class ProgressGate extends Actor {
 	case OneStarted =>
 	  started += 1
 	  checkConditions()
-	case OneKept => 
-	  kept += 1
-	  checkConditions()
-	case OneDiscarded =>
-	  discarded += 1
+	case OneProcessed =>
+	  processed += 1
 	  checkConditions()
 	case OneWaiting =>
 	  waiting += 1
@@ -90,9 +82,6 @@ class ProgressGate extends Actor {
 	case WaitUntilAllProcessed =>
 	  processedWaiter = Some(sender)
 	  checkConditions()
-	case GetTotals =>
-	  assert(candidates isDefined)
-	  reply(Totals(candidates.get, kept, discarded))
 	case End => exit()
       }
     }

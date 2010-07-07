@@ -88,13 +88,13 @@ object QuickShake {
 			}
 
 		      case ClassDecoder.End =>
-			progressGate ! ProgressGate.OneKept
+			progressGate ! ProgressGate.OneProcessed
 		        exit()
 		    }
 		  }
 		case KeepClassDecider.Discarded => 
 		  logger.debug("Discarding " + className)
-		  progressGate ! ProgressGate.OneDiscarded
+		  progressGate ! ProgressGate.OneProcessed
 	          decoder ! ClassDecoder.Discard
 		  exit()
 	      }
@@ -143,12 +143,6 @@ object QuickShake {
 
     logger.debug("Waiting until all classes have been processed")
     progressGate !? ProgressGate.WaitUntilAllProcessed
-    progressGate !? ProgressGate.GetTotals match {
-      case ProgressGate.Totals(candidates, kept, discarded) =>
-	logger.info("Analyzed: " + candidates)
-	logger.info("Kept: " + kept)
-	logger.info("Discarded: " + discarded)
-    }
     progressGate ! ProgressGate.End
 
     dataWriter ! ClassDataWriter.End
