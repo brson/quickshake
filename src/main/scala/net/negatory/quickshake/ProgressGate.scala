@@ -61,30 +61,23 @@ class ProgressGate extends Actor {
 
     loop {
       react {
-	case Tasks(total) =>
-	  tasks = Some(total)
+	val f: PartialFunction[Any, Unit] = {
+	  case Tasks(total) => tasks = Some(total)
+	  case OneStarted => started += 1
+	  case OneComplete => complete += 1
+	  case OneBlocked => blocked += 1
+	  case OneResumed => blocked -= 1
+	  case AlertWhenAllBlocked => blockedListener = Some(sender)
+	  case AlertWhenAllComplete => completeListener = Some(sender)
+	  case End => exit()
+	}
+
+	f andThen { _ =>
 	  checkConditions()
-	case OneStarted =>
-	  started += 1
-	  checkConditions()
-	case OneComplete =>
-	  complete += 1
-	  checkConditions()
-	case OneBlocked =>
-	  blocked += 1
-	  checkConditions()
-	case OneResumed =>
-	  blocked -= 1
-	  checkConditions()
-	case AlertWhenAllBlocked =>
-	  blockedListener = Some(sender)
-	  checkConditions()
-	case AlertWhenAllComplete =>
-	  completeListener = Some(sender)
-	  checkConditions()
-	case End => exit()
+	}
       }
     }
+
   }
 
 }
