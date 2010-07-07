@@ -74,7 +74,7 @@ object QuickShake {
 	      react {
 		case KeepClassDecider.Waiting =>
 		  logger.debug("Waiting for decision on "  + className)
-		  progressGate ! ProgressGate.OneWaiting
+		  progressGate ! ProgressGate.OneBlocked
 		case KeepClassDecider.Kept =>
 		  logger.debug("Keeping " + className)
 		  decoder ! ClassDecoder.FindDependencies
@@ -128,7 +128,7 @@ object QuickShake {
 			    case 'done => methodsOutstanding -= 1
 			  }
 			} andThen {
-			  progressGate ! ProgressGate.OneKept
+			  progressGate ! ProgressGate.OneComplete
 			  dataWriter ! ClassDataWriter.AddClass(origFile, className, classData)
 		          exit()
 			}
@@ -136,7 +136,7 @@ object QuickShake {
 		  }
 		case KeepClassDecider.Discarded => 
 		  logger.debug("Discarding " + className)
-		  progressGate ! ProgressGate.OneDiscarded
+		  progressGate ! ProgressGate.OneComplete
 	          decoder ! ClassDecoder.Discard
 		  exit()
 	      }
@@ -176,21 +176,15 @@ object QuickShake {
     val totalCandidates = perReaderTotals.foldLeft (0) { (total, readerTotal) => total + readerTotal.get }
 
     logger.debug("Waiting until all classes have been seen")
-    progressGate ! ProgressGate.Candidates(totalCandidates)
-    progressGate !? ProgressGate.WaitUntilAllSeen
+    progressGate ! ProgressGate.Tasks(totalCandidates)
+    progressGate !? ProgressGate.AlertWhenAllBlocked
 
     logger.debug("Draining waiters")
     decider ! KeepClassDecider.DrainWaiters
     decider ! KeepClassDecider.End
 
     logger.debug("Waiting until all classes have been processed")
-    progressGate !? ProgressGate.WaitUntilAllProcessed
-    progressGate !? ProgressGate.GetTotals match {
-      case ProgressGate.Totals(candidates, kept, discarded) =>
-	logger.info("Analyzed: " + candidates)
-	logger.info("Kept: " + kept)
-	logger.info("Discarded: " + discarded)
-    }
+    progressGate !? ProgressGate.AlertWhenAllComplete
     progressGate ! ProgressGate.End
 
     dataWriter ! ClassDataWriter.End

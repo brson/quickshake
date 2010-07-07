@@ -4,18 +4,15 @@ import actors.Actor
 import actors.Actor._
 
 object ProgressGate {
-  case class Candidates(total: Int)
+  case class Tasks(total: Int)
   case object OneStarted
-  case object OneKept
-  case object OneDiscarded
-  case object OneWaiting
+  case object OneComplete
+  case object OneBlocked
   case object OneResumed
-  case object WaitUntilAllSeen
-  case object AllSeen
-  case object WaitUntilAllProcessed
-  case object AllProcessed
-  case object GetTotals
-  case class Totals(candidates: Int, kept: Int, discarded: Int)
+  case object AlertWhenAllBlocked
+  case object AllBlocked
+  case object AlertWhenAllComplete
+  case object AllComplete
   case object End
 }
 
@@ -24,78 +21,63 @@ class ProgressGate extends Actor {
     import actors.OutputChannel
     import ProgressGate._
 
-    var candidates: Option[Int] = None
+    var tasks: Option[Int] = None
     var started = 0
-    var kept = 0
-    var discarded = 0
-    var waiting = 0
-    def processed = kept + discarded
-    def live = started - kept - discarded - waiting
+    var blocked = 0
+    var complete = 0
+    def live = started - complete - blocked
 
-    var seenWaiter: Option[OutputChannel[Any]] = None
-    var processedWaiter: Option[OutputChannel[Any]] = None
+    var blockedListener: Option[OutputChannel[Any]] = None
+    var completeListener: Option[OutputChannel[Any]] = None
 
-    def checkConditions() {
-      candidates match {
-	case Some(candidates) =>
-	  assert(started <= candidates)
-	  if (processed == candidates) {
-	    seenWaiter match {
-	      case Some(actor) =>
-		actor ! AllSeen
-		seenWaiter = None
-	      case None => ()
-	    }
-	    processedWaiter match {
-	      case Some(actor) =>
-		actor ! AllProcessed
-		processedWaiter = None
-	      case None => ()
-	    }
-	  } else if (started == candidates && live == 0) {
-	    seenWaiter match {
-	      case Some(actor) =>
-		actor ! AllSeen
-		seenWaiter = None
-	      case None => ()
-	  }
+    def allComplete = tasks match {
+      case Some(tasks) => complete == tasks
+      case None => false
+    }
+    def allBlocked = tasks match { 
+      case Some(tasks) => started == tasks && live == 0
+      case None => false
+    }
+
+    def checkConditions() = {
+      if (allBlocked) {
+	blockedListener match {
+	  case Some(listener) =>
+	    listener ! AllBlocked
+	    blockedListener = None
+	  case None => ()
 	}
-	case None => ()
+      }
+      
+      if (allComplete) {
+	completeListener match {
+	  case Some(listener) =>
+	    listener ! AllComplete
+	    completeListener = None
+	  case None => ()
+	}
       }
     }
 
     loop {
       react {
-	case Candidates(total) =>
-	  candidates = Some(total)
+	val f: PartialFunction[Any, Unit] = {
+	  case Tasks(total) => tasks = Some(total)
+	  case OneStarted => started += 1
+	  case OneComplete => complete += 1
+	  case OneBlocked => blocked += 1
+	  case OneResumed => blocked -= 1
+	  case AlertWhenAllBlocked => blockedListener = Some(sender)
+	  case AlertWhenAllComplete => completeListener = Some(sender)
+	  case End => exit()
+	}
+
+	f andThen { _ =>
 	  checkConditions()
-	case OneStarted =>
-	  started += 1
-	  checkConditions()
-	case OneKept => 
-	  kept += 1
-	  checkConditions()
-	case OneDiscarded =>
-	  discarded += 1
-	  checkConditions()
-	case OneWaiting =>
-	  waiting += 1
-	  checkConditions()
-	case OneResumed =>
-	  waiting -= 1
-	  checkConditions()
-	case WaitUntilAllSeen =>
-	  seenWaiter = Some(sender)
-	  checkConditions()
-	case WaitUntilAllProcessed =>
-	  processedWaiter = Some(sender)
-	  checkConditions()
-	case GetTotals =>
-	  assert(candidates isDefined)
-	  reply(Totals(candidates.get, kept, discarded))
-	case End => exit()
+	}
       }
     }
+
   }
 
 }
