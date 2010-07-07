@@ -22,19 +22,18 @@ class DirectoryDataWriter(outputDir: File) extends ClassDataWriter with Logging 
     loop {
       react {
 	case AddClass(origFile, className, classData) =>
-	  addClass(origFile, className, classData)
+	  addClass(className, classData)
 	case End => exit
       }
     }
   }
 
   private def addClass(
-    origFile: Option[File], 
     className: ClassName,
     classData: Array[Byte]
   ) {
     import org.apache.commons.io.FileUtils
-    import FileUtils.{forceMkdir, copyFileToDirectory, writeByteArrayToFile}
+    import FileUtils.{forceMkdir, writeByteArrayToFile}
 
     val filePath = new File(outputDir, className.filePath)
 
@@ -45,10 +44,7 @@ class DirectoryDataWriter(outputDir: File) extends ClassDataWriter with Logging 
 
     forceMkdir(dirPath)
 
-    origFile match {
-      case Some(file) => copyFileToDirectory(file, dirPath)
-      case None => writeByteArrayToFile(filePath, classData)
-    }
+    writeByteArrayToFile(filePath, classData)
   }
 }
 
