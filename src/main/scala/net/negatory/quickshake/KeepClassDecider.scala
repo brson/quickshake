@@ -114,18 +114,27 @@ class KeepClassDecider(
     } else if (methodSet contains methodName) {
       sender ! Kept
     } else {
-      sender ! Discarded
-      /*sender ! Waiting
+      sender ! Waiting
       val currentList = if (methodRequesterMap contains methodName) methodRequesterMap(methodName)
 			else Nil
       methodRequesterMap put (methodName, (sender, preWakeAction) :: currentList)
-      */
+      
     }
   }
 
   private def drainRequesters() {
     debug("Discarding remaining class keep decisions")
-    for (Pair(_, Pair(requester, preWakeAction)) <- requesterMap) {
+
+    for (
+      (_, requests) <- methodRequesterMap;
+      (requester, preWakeAction) <- requests
+    ) {
+      preWakeAction()
+      requester ! Discarded
+    }
+    methodRequesterMap.clear()
+
+    for ((_, (requester, preWakeAction)) <- requesterMap) {
       preWakeAction()
       requester ! Discarded
     }

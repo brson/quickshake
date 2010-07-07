@@ -70,6 +70,8 @@ object QuickShake {
 	    val resume = () => progressGate ! ProgressGate.OneResumed
 	    decider ! KeepClassDecider.DecideOnClass(className, resume)
 	    progressGate ! ProgressGate.OneStarted
+	    val methodProgressGate = (new ProgressGate with ShakeMixin).start()
+	    var methods = 0
 	    loop {
 	      react {
 		case KeepClassDecider.Waiting =>
@@ -78,7 +80,6 @@ object QuickShake {
 		case KeepClassDecider.Kept =>
 		  logger.debug("Keeping " + className)
 		  decoder ! ClassDecoder.FindDependencies
-		  var methodsOutstanding = 0
 		  loop {
 		    react {
 		      case ClassDecoder.ClassDependency(depName) =>
@@ -87,15 +88,15 @@ object QuickShake {
 			  case KeepClassDecider.DoneKeeping => ()
 			}
 		      case ClassDecoder.Method(methodName, classDeps, methodDeps) =>
-			methodsOutstanding += 1
-			val methodDoneNotifyActor = self
-			val onResume = () => methodDoneNotifyActor ! 'oneResumed
+			methods += 1
 			actor {
+			  methodProgressGate ! ProgressGate.OneStarted
+			  val onResume = () => methodProgressGate ! ProgressGate.OneResumed
 			  decider ! KeepClassDecider.DecideOnMethod(className, methodName, onResume)
 			  loop {
 			    react {
-			      case KeepClassDecider.Waiting =>
-				methodDoneNotifyActor ! 'oneWaiting
+			      case KeepClassDecider.Waiting => ()
+				methodProgressGate ! ProgressGate.OneBlocked
 			      case KeepClassDecider.Kept =>
 				var remainingClassDeps = classDeps
 				var remainingMethodDeps = methodDeps
@@ -112,30 +113,40 @@ object QuickShake {
 				    case KeepClassDecider.DoneKeeping => ()
 				  }
 				} andThen {
-				  methodDoneNotifyActor ! 'done
+				  methodProgressGate ! ProgressGate.OneComplete
 				  exit()
 				}
 			      case KeepClassDecider.Discarded =>
-				methodDoneNotifyActor ! 'done
+				methodProgressGate ! ProgressGate.OneComplete
 				exit()
 			    }
 			  }
 			}
 		      case ClassDecoder.End =>
-			// TODO Wait for all method actors to finish
-			loopWhile (methodsOutstanding > 0) {
-			  react {
-			    case 'done => methodsOutstanding -= 1
-			  }
-			} andThen {
-			  progressGate ! ProgressGate.OneComplete
-			  dataWriter ! ClassDataWriter.AddClass(origFile, className, classData)
-		          exit()
+			methodProgressGate ! ProgressGate.Tasks(methods)
+			logger.debug("Waiting for methods to block")
+			methodProgressGate ! ProgressGate.AlertWhenAllBlocked
+			react {
+			  case ProgressGate.AllBlocked =>
+			    progressGate ! ProgressGate.OneBlocked
+			    logger.debug("Waiting for methods to complete")
+			    methodProgressGate ! ProgressGate.AlertWhenAllComplete
+			    react {
+			      case ProgressGate.AllComplete => ()
+				logger.debug("Methods complete")
+				progressGate ! ProgressGate.OneResumed
+				// Wait for methods
+				methodProgressGate ! ProgressGate.End
+				progressGate ! ProgressGate.OneComplete
+				dataWriter ! ClassDataWriter.AddClass(origFile, className, classData)
+				exit()
+			    }
 			}
 		    }
 		  }
 		case KeepClassDecider.Discarded => 
 		  logger.debug("Discarding " + className)
+		  methodProgressGate ! ProgressGate.End
 		  progressGate ! ProgressGate.OneComplete
 	          decoder ! ClassDecoder.Discard
 		  exit()
