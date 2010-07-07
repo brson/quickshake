@@ -146,12 +146,7 @@ object QuickShake {
 				// Get the list of methods to keep
 				import collection.mutable.HashSet
 				var methodsDecided = 0
-				val methodsKept = new HashSet[String] {
-				  // Make sure there's plenty of room to hash
-				  // those methods and never reallocate
-				  // TODO: Find out if this is worth doing
-				  override def initialSize = methods * 3
-				}
+				val methodsKept = new HashSet[String]
 				loopWhile(methodsDecided < methods) {
 				  react {
 				    val f: PartialFunction[Any, Unit] = {
