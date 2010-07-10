@@ -63,7 +63,7 @@ object QuickShake {
       start()
     }
 
-    def decode(origFile: Option[File], classData: Array[Byte]) {
+    def decode(classData: Array[Byte]) {
       val decoder = {
 	new ClassDecoder(classData) with TerminationMixin
       }.start()
@@ -143,7 +143,7 @@ object QuickShake {
 			    f andThen { _ => methodsDecided += 1 }
 			  }
 			} andThen {
-			  dataWriter ! ClassDataWriter.AddClass(origFile, className, classData)
+			  dataWriter ! ClassDataWriter.AddClass(className, classData)
 			  exit()
 			}
 		    }
@@ -168,8 +168,8 @@ object QuickShake {
 
           loop {
             react {
-              case ClassDataReader.Visit(origFile, classData) =>
-		decode (origFile, classData)
+              case ClassDataReader.Visit(classData) =>
+		decode (classData)
               case ClassDataReader.End =>
 		exit()
             }

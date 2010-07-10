@@ -6,7 +6,6 @@ import java.io.File
 
 object ClassDataWriter {
   case class AddClass(
-    origFile: Option[File],
     className: ClassName,
     classData: Array[Byte]
     )
@@ -21,7 +20,7 @@ class DirectoryDataWriter(outputDir: File) extends ClassDataWriter with Logging 
     import ClassDataWriter._
     loop {
       react {
-	case AddClass(origFile, className, classData) =>
+	case AddClass(className, classData) =>
 	  addClass(className, classData)
 	case End => reply('done); exit()
       }
@@ -64,7 +63,7 @@ class JarDataWriter(jar: File) extends ClassDataWriter with Logging {
 
     loop {
       react {
-	case AddClass(origFile, className, classData) =>
+	case AddClass(className, classData) =>
 	  val entry = new ZipEntry(className.filePath)
 	  jarOutput.putNextEntry(entry)
 	  jarOutput.write(classData)

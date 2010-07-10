@@ -7,7 +7,7 @@ import org.apache.commons.io.IOUtils.closeQuietly
 
 object ClassDataReader {
   case object Search
-  case class Visit(origFile: Option[File], classData: Array[Byte])
+  case class Visit(classData: Array[Byte])
   case object End
 }
 
@@ -29,7 +29,7 @@ class DirectoryDataReader(root: File) extends ClassDataReader with Logging {
     debug("Searching for class files in " + root)
     for (classFile <- allClassFiles(root)) {
       debug("Found " + classFile)
-      reply(Visit(Some(classFile), loadClassData(classFile)))
+      reply(Visit(loadClassData(classFile)))
     }
     reply(End)
   }
@@ -99,7 +99,7 @@ class JarDataReader(jar: File) extends ClassDataReader with Logging {
 	    else ()
 	  }
 	  readClass(classData, 0)
-	  reply(Visit(None, classData))
+	  reply(Visit(classData))
 	}
 	
 	entry = jarStream.getNextEntry()
