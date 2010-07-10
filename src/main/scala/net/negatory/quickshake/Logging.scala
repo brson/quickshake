@@ -13,14 +13,14 @@ trait Logger {
 
   // Allows creation of a single logger, then mixing in the instance's Mixin trait
   trait LoggerMixin extends Logging {
-    override def minLevel = {
-      if (super.minLevel < Logger.this.minLevel) super.minLevel
-      else Logger.this.minLevel
+    override def minLogLevel = {
+      if (super.minLogLevel < Logger.this.minLogLevel) super.minLogLevel
+      else Logger.this.minLogLevel
     }
     override def log(level: LogLevel, msg: String) = Logger.this.log(level, msg)
   }
 
-  def minLevel: LogLevel = Error
+  def minLogLevel: LogLevel = Error
 
   // TODO: Consider eliding this method
   def debug(msg: => String): Unit = trylog(Debug, msg)
@@ -32,7 +32,7 @@ trait Logger {
   }
 
   def trylog(level: LogLevel, msg: => String) {
-    if (level >= minLevel) log(level, msg)
+    if (level >= minLogLevel) log(level, msg)
   }
 
   def log(level: LogLevel, msg: String) {}
@@ -40,7 +40,7 @@ trait Logger {
 
 class ConsoleLogger(level: LogLevel) extends Logging {
 
-  override def minLevel: LogLevel = level
+  override def minLogLevel: LogLevel = level
 
   override def log(level: LogLevel, msg: String) {
     val levelStr = level match {
