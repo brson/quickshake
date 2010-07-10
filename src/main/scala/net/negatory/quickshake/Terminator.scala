@@ -35,7 +35,7 @@ class Terminator extends Actor with Logging {
 
   import Terminator._
 
-  trait TerminationMixin extends Actor {
+  trait TerminationMixin extends Actor with Logging {
 
     private var procState: ProcessState = Active
     private var stickyState: ProcessState = Active
