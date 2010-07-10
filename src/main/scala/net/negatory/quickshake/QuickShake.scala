@@ -177,18 +177,24 @@ object QuickShake {
 	}
     }
 
-    while (true) {
-      readLine
+    // TODO: Need to find a better way to estimate when we need
+    // to begin probing for termination
 
-      terminator !? Terminator.AwaitTermination
-      logger.debug("Draining waiters")
-      decider ! KeepClassDecider.DrainWaiters
+    var continue = true
+    while (continue) {
+      terminator !? Terminator.AwaitAllPassive match {
+	case Terminator.AllPassive =>
+	  logger.debug("Draining waiters")
+	  decider ! KeepClassDecider.DrainWaiters
+	case Terminator.AllDone => continue = false
+      }
     }
-    readLine
-    terminator !? Terminator.AwaitTermination
     logger.debug("Cleaning up")
     decider ! KeepClassDecider.End
-    dataWriter ! ClassDataWriter.End
+    dataWriter !? ClassDataWriter.End
+
+    // TODO: Need to shutdown cleanly
+    Runtime.getRuntime().exit(0)
     terminator ! Terminator.End
   }
 

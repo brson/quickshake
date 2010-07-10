@@ -9,16 +9,21 @@ import actors.Actor._
  */
 
 // TODO: Implement 'lazy' waves, only propogating when an actor becomes passive
-// This would require explicitly identifying when actors are passive
+// This would require explicitly identifying when actors are passive. Probably
+// the easiest way to to this would be to create a reactFast method that
+// doesn't put the actor into a passive state, then gradually find which
+// reacts shouldn't 'block'
 
 object Terminator {
   sealed trait ProcessState
   case object Active extends ProcessState
   case object Passive extends ProcessState
+  case object Done extends ProcessState
 
   case class Register(actor: Actor)
-  case object AwaitTermination
-  case object Terminated
+  case object AwaitAllPassive
+  case object AllPassive
+  case object AllDone
 
   case object CollectAndResetStickyState
   case class StickyState(state: ProcessState)
@@ -70,12 +75,19 @@ class Terminator extends Actor with Logging {
 					
     abstract override def exit(): Nothing = {
       debug("Waiting for end message to exit tracked actor " + this)
-      react {
+
+      lazy val f: PartialFunction[Any, Unit] = {
+	case CollectAndResetStickyState =>
+	  reply(StickyState(Done))
+	  react(f)
 	case End =>
 	  debug("Exiting tracked actor " + this)
 	  super.exit()
       }
+
+      react(f)
     }
+
   }
 
   def act() = {
@@ -84,7 +96,7 @@ class Terminator extends Actor with Logging {
     loop {
       react {
 	case Register(actor) => tracked = actor :: tracked
-	case AwaitTermination => awaitTermination(sender, tracked) 
+	case AwaitAllPassive => awaitAllPassive(sender, tracked)
 	case End => endActors(tracked); exit()
       }
     }
@@ -92,14 +104,17 @@ class Terminator extends Actor with Logging {
 
   import actors.OutputChannel
 
-  def awaitTermination(requester: OutputChannel[Any], tracked: List[Actor]): Unit = actor {
+  def awaitAllPassive(requester: OutputChannel[Any], tracked: List[Actor]): Unit = actor {
     debug("Awaiting termination")
     initiateControlWave(self, tracked)
     self.react {
-      case StickyState(Active) => awaitTermination(requester, tracked)
+      case StickyState(Active) => awaitAllPassive(requester, tracked)
       case StickyState(Passive) =>
 	debug("All actors passive")
-	requester ! Terminated
+	requester ! AllPassive
+      case StickyState(Done) =>
+	debug("All actors done")
+	requester ! AllDone
     }
   }
 
@@ -111,18 +126,24 @@ class Terminator extends Actor with Logging {
 	t + 1
     }
 
-    var passive = 0
     var active = 0
-    def recvd = passive + active
+    var passive = 0
+    var done = 0
+    def recvd = passive + active + done
 
     loopWhile (recvd < total) {
       self.react {
 	case StickyState(Active) => active += 1
 	case StickyState(Passive) => passive += 1
+	case StickyState(Done) => done += 1
       }
     } andThen {
-      debug("Found " + passive + " passive and " + active + " active")
-      requester ! StickyState(if (active > 0) Active else Passive)
+      debug("Found " + active + " active " + passive + " passive " + done + " done")
+      requester ! StickyState {
+	if (active > 0) Active
+	else if (passive > 0) Passive
+	else Done
+      }
     }
   }
 

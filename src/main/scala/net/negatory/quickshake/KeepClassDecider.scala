@@ -36,7 +36,7 @@ class KeepClassDecider(
 	case DrainWaiters => drainRequesters()
 	case End => 
 	  debug("Decider exiting")
-	  exit
+	  exit()
       }
     }
   }

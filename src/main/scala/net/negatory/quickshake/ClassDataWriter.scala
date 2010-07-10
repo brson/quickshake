@@ -23,7 +23,7 @@ class DirectoryDataWriter(outputDir: File) extends ClassDataWriter with Logging 
       react {
 	case AddClass(origFile, className, classData) =>
 	  addClass(className, classData)
-	case End => exit
+	case End => reply('done); exit()
       }
     }
   }
@@ -69,6 +69,7 @@ class JarDataWriter(jar: File) extends ClassDataWriter with Logging {
 	  jarOutput.putNextEntry(entry)
 	  jarOutput.write(classData)
 	case End =>
+	  reply('done)
 	  // TODO: This isn't enough to guarantee that jarOutput gets closed
 	  closeQuietly(jarOutput)
 	  exit()
