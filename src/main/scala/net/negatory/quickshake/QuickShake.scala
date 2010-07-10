@@ -53,10 +53,14 @@ object QuickShake {
     val decider = {
       new KeepClassDecider(options.keepNamespaces) with ShakeMixin
     }.start()
+    val statsTracker = {
+      new StatsTracker with ShakeMixin
+    }.start()
+
+
     val terminator = new Terminator with ShakeMixin
     terminator.start()
     trait TerminationMixin extends ShakeMixin with terminator.TerminationMixin
-
     def trackedActor(body: => Unit) = new Actor with TerminationMixin {
       def act() = body
 
@@ -144,6 +148,7 @@ object QuickShake {
 			  }
 			} andThen {
 			  dataWriter ! ClassDataWriter.AddClass(className, classData)
+			  statsTracker ! StatsTracker.KeptClass(methodsKept.size)
 			  exit()
 			}
 		    }
@@ -151,6 +156,7 @@ object QuickShake {
 		case KeepClassDecider.Discarded => 
 		  logger.debug("Discarding " + className)
 	          decoder ! ClassDecoder.Discard
+		  statsTracker ! StatsTracker.DiscardedClass
 		  exit()
 	      }
 	    }
@@ -190,6 +196,8 @@ object QuickShake {
       }
     }
     logger.debug("Cleaning up")
+    statsTracker ! StatsTracker.LogStats
+    statsTracker ! StatsTracker.End
     decider ! KeepClassDecider.End
     dataWriter !? ClassDataWriter.End
 
