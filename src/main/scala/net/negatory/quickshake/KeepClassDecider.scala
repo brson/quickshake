@@ -7,8 +7,8 @@ object KeepClassDecider {
   case class KeepClass(className: ClassName)
   case class KeepMethod(methodName: String)
   case object DoneKeeping
-  case class DecideOnClass(className: ClassName, preWakeAction: () => Unit)
-  case class DecideOnMethod(className: ClassName, methodName: String, preWakeAction: () => Unit)
+  case class DecideOnClass(className: ClassName)
+  case class DecideOnMethod(className: ClassName, methodName: String)
   case object Kept
   case object Waiting
   case object Discarded
@@ -31,10 +31,8 @@ class KeepClassDecider(
       react {
 	case KeepClass(className) => keepClass(className)
 	case KeepMethod(methodName) => keepMethod(methodName)
-	case DecideOnClass(className, preWakeAction) =>
-	  decideOnClass(className, preWakeAction)
-	case DecideOnMethod(className, methodName, preWakeAction) =>
-	  decideOnMethod(className, methodName, preWakeAction)
+	case DecideOnClass(className) => decideOnClass(className)
+	case DecideOnMethod(className, methodName) => decideOnMethod(className, methodName)
 	case DrainWaiters => drainRequesters()
 	case End => 
 	  debug("Decider exiting")
@@ -47,17 +45,16 @@ class KeepClassDecider(
   import actors.OutputChannel
 
   private val keepSet = new HashSet[ClassName]
-  private val requesterMap = new HashMap[ClassName, Pair[OutputChannel[Any], () => Unit]]
+  private val requesterMap = new HashMap[ClassName, OutputChannel[Any]]
   private val methodSet = new HashSet[String]
-  private val methodRequesterMap = new HashMap[String, List[Pair[OutputChannel[Any], () => Unit]]]
+  private val methodRequesterMap = new HashMap[String, List[OutputChannel[Any]]]
   
   private def keepClass(className: ClassName) {
 
     keepSet += className
 
     if (requesterMap contains className) {
-      val (requester, preWakeAction) = requesterMap(className)
-      preWakeAction()
+      val requester = requesterMap(className)
       requester ! Kept
       requesterMap -= className
     }
@@ -70,10 +67,7 @@ class KeepClassDecider(
 
     if (methodRequesterMap contains methodName) {
       val requesterList = methodRequesterMap(methodName)
-      for ((requester, preWakeAction) <- requesterList) {
-	preWakeAction()
-	requester ! Kept
-      }
+      requesterList foreach { _ ! Kept }
       methodRequesterMap -= methodName
     }
     reply(DoneKeeping)
@@ -84,7 +78,7 @@ class KeepClassDecider(
       res || (className isInNamespace ns)
   }
 
-  private def decideOnClass(className: ClassName, preWakeAction: () => Unit) {
+  private def decideOnClass(className: ClassName) {
 
     debug("Deciding whether to keep " + className)
 
@@ -99,14 +93,13 @@ class KeepClassDecider(
     // Hold on to it for later
     else {
       sender ! Waiting
-      requesterMap put (className, (sender, preWakeAction))
+      requesterMap put (className, sender)
     }
   }
 
   private def decideOnMethod(
     className: ClassName,
-    methodName: String,
-    preWakeAction: () => Unit
+    methodName: String
   ) {
     debug("Deciding whether to keep method " + methodName)
     if (isInKeptNs(className)) {
@@ -117,7 +110,7 @@ class KeepClassDecider(
       sender ! Waiting
       val currentList = if (methodRequesterMap contains methodName) methodRequesterMap(methodName)
 			else Nil
-      methodRequesterMap put (methodName, (sender, preWakeAction) :: currentList)
+      methodRequesterMap put (methodName, sender :: currentList)
       
     }
   }
@@ -127,15 +120,13 @@ class KeepClassDecider(
 
     for (
       (_, requests) <- methodRequesterMap;
-      (requester, preWakeAction) <- requests
+      requester <- requests
     ) {
-      preWakeAction()
       requester ! Discarded
     }
     methodRequesterMap.clear()
 
-    for ((_, (requester, preWakeAction)) <- requesterMap) {
-      preWakeAction()
+    for ((_, requester) <- requesterMap) {
       requester ! Discarded
     }
     requesterMap.clear()

@@ -53,9 +53,6 @@ object QuickShake {
     val decider = {
       new KeepClassDecider(options.keepNamespaces) with ShakeMixin
     }.start()
-    val progressGate = {
-      new ProgressGate with ShakeMixin
-    }.start()
 
     def decode(origFile: Option[File], classData: Array[Byte]) {
       val decoder = new ClassDecoder(classData) with ShakeMixin
@@ -67,16 +64,12 @@ object QuickShake {
         react {
           case ClassDecoder.Name(className) =>
 	    logger.debug("Decoded name of class " + className)
-	    val resume = () => progressGate ! ProgressGate.OneResumed
-	    decider ! KeepClassDecider.DecideOnClass(className, resume)
-	    progressGate ! ProgressGate.OneStarted
-	    val methodProgressGate = (new ProgressGate with ShakeMixin).start()
+	    decider ! KeepClassDecider.DecideOnClass(className)
 	    var methods = 0
 	    loop {
 	      react {
 		case KeepClassDecider.Waiting =>
 		  logger.debug("Waiting for decision on "  + className)
-		  progressGate ! ProgressGate.OneBlocked
 		case KeepClassDecider.Kept =>
 		  logger.debug("Keeping " + className)
 		  decoder ! ClassDecoder.FindDependencies
@@ -95,13 +88,10 @@ object QuickShake {
 			methods += 1
 			val methodAccumulator = self
 			actor {
-			  methodProgressGate ! ProgressGate.OneStarted
-			  val onResume = () => methodProgressGate ! ProgressGate.OneResumed
-			  decider ! KeepClassDecider.DecideOnMethod(className, methodName, onResume)
+			  decider ! KeepClassDecider.DecideOnMethod(className, methodName)
 			  loop {
 			    react {
 			      case KeepClassDecider.Waiting => ()
-				methodProgressGate ! ProgressGate.OneBlocked
 			      case KeepClassDecider.Kept =>
 				methodAccumulator ! KeepMethod(methodName)
 				var remainingClassDeps = classDeps
@@ -119,57 +109,37 @@ object QuickShake {
 				    case KeepClassDecider.DoneKeeping => ()
 				  }
 				} andThen {
-				  methodProgressGate ! ProgressGate.OneComplete
 				  exit()
 				}
 			      case KeepClassDecider.Discarded =>
 				methodAccumulator ! DiscardMethod
-				methodProgressGate ! ProgressGate.OneComplete
 				exit()
 			    }
 			  }
 			}
 		      case ClassDecoder.End =>
-			methodProgressGate ! ProgressGate.Tasks(methods)
-			logger.debug("Waiting for methods to block")
-			methodProgressGate ! ProgressGate.AlertWhenAllBlocked
-			react {
-			  case ProgressGate.AllBlocked =>
-			    progressGate ! ProgressGate.OneBlocked
-			    logger.debug("Waiting for methods to complete")
-			    methodProgressGate ! ProgressGate.AlertWhenAllComplete
-			    react {
-			      case ProgressGate.AllComplete => ()
-				logger.debug("Methods complete")
-				progressGate ! ProgressGate.OneResumed
-				methodProgressGate ! ProgressGate.End
-				// Get the list of methods to keep
-				import collection.mutable.HashSet
-				var methodsDecided = 0
-				val methodsKept = new HashSet[String]
-				loopWhile(methodsDecided < methods) {
-				  react {
-				    val f: PartialFunction[Any, Unit] = {
-				      case KeepMethod(methodName) =>
-					methodsKept += methodName
-				      case DiscardMethod => ()
-				    }
-
-				    f andThen { _ => methodsDecided += 1 }
-				  }
-				} andThen {
-				  dataWriter ! ClassDataWriter.AddClass(origFile, className, classData)
-				  progressGate ! ProgressGate.OneComplete
-				  exit()
-				}
+			// Get the list of methods to keep
+			import collection.mutable.HashSet
+			var methodsDecided = 0
+			val methodsKept = new HashSet[String]
+			loopWhile(methodsDecided < methods) {
+			  react {
+			    val f: PartialFunction[Any, Unit] = {
+			      case KeepMethod(methodName) =>
+				methodsKept += methodName
+			      case DiscardMethod => ()
 			    }
+
+			    f andThen { _ => methodsDecided += 1 }
+			  }
+			} andThen {
+			  dataWriter ! ClassDataWriter.AddClass(origFile, className, classData)
+			  exit()
 			}
 		    }
 		  }
 		case KeepClassDecider.Discarded => 
 		  logger.debug("Discarding " + className)
-		  methodProgressGate ! ProgressGate.End
-		  progressGate ! ProgressGate.OneComplete
 	          decoder ! ClassDecoder.Discard
 		  exit()
 	      }
@@ -178,48 +148,30 @@ object QuickShake {
       }
     }
 
-    import concurrent.SyncVar
-
     // Create a client for each reader that processes the input classes.
-    // Get a list of futures containing the 
-    val perReaderTotals = dataReaders map { 
+    dataReaders map { 
       
       (reader) =>
-	val total = new SyncVar[Int]
 
 	actor {
           reader ! ClassDataReader.Search
 
-	  var candidateCount = 0
           loop {
             react {
               case ClassDataReader.Visit(origFile, classData) =>
 		decode (origFile, classData)
-		candidateCount += 1
               case ClassDataReader.End =>
-		total set candidateCount
 		exit()
             }
           }
 	}
-
-	total
     }
 
-    val totalCandidates = perReaderTotals.foldLeft (0) { (total, readerTotal) => total + readerTotal.get }
-
-    logger.debug("Waiting until all classes have been seen")
-    progressGate ! ProgressGate.Tasks(totalCandidates)
-    progressGate !? ProgressGate.AlertWhenAllBlocked
+    readLine
 
     logger.debug("Draining waiters")
     decider ! KeepClassDecider.DrainWaiters
     decider ! KeepClassDecider.End
-
-    logger.debug("Waiting until all classes have been processed")
-    progressGate !? ProgressGate.AlertWhenAllComplete
-    progressGate ! ProgressGate.End
-
     dataWriter ! ClassDataWriter.End
     exitHandler ! ExitHandler.End
   }
