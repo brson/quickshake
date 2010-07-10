@@ -26,7 +26,7 @@ object Terminator {
   case object End
 }
 
-class Terminator extends Actor {
+class Terminator extends Actor with Logging {
 
   import Terminator._
 
@@ -69,8 +69,11 @@ class Terminator extends Actor {
     }
 					
     abstract override def exit(): Nothing = {
+      debug("Waiting for end message to exit tracked actor " + this)
       react {
-	case End => super.exit()
+	case End =>
+	  debug("Exiting tracked actor " + this)
+	  super.exit()
       }
     }
   }
@@ -90,16 +93,20 @@ class Terminator extends Actor {
   import actors.OutputChannel
 
   def awaitTermination(requester: OutputChannel[Any], tracked: List[Actor]): Unit = actor {
+    debug("Awaiting termination")
     initiateControlWave(self, tracked)
-    react {
+    self.react {
       case StickyState(Active) => awaitTermination(requester, tracked)
-      case StickyState(Passive) => requester ! Terminated
+      case StickyState(Passive) =>
+	debug("All actors passive")
+	requester ! Terminated
     }
   }
 
   def initiateControlWave(requester: OutputChannel[Any], tracked: List[Actor]) = actor {
-    val total = tracked.foldRight (0) {
-      (a, t) => 
+    debug("Initiating control wave")
+    val total = tracked.foldLeft (0) {
+      (t, a) => 
 	a ! CollectAndResetStickyState
 	t + 1
     }
@@ -109,11 +116,12 @@ class Terminator extends Actor {
     def recvd = passive + active
 
     loopWhile (recvd < total) {
-      react {
+      self.react {
 	case StickyState(Active) => active += 1
 	case StickyState(Passive) => passive += 1
       }
     } andThen {
+      debug("Found " + passive + " passive and " + active + " active")
       requester ! StickyState(if (active > 0) Active else Passive)
     }
   }

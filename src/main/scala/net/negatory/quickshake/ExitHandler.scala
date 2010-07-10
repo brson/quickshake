@@ -4,8 +4,8 @@ import actors.Actor
 import actors.Actor._
 
 object ExitHandler {
-  case object End
   case class Watch(actor: Actor)
+  case object Watched
 }
 
 class ExitHandler extends Actor with Logging {
@@ -14,6 +14,7 @@ class ExitHandler extends Actor with Logging {
   import actors.Exit
 
   val handler = this
+  var watched = 0
 
   trait TrapMixin extends Actor {
     handler !? Watch(this)
@@ -23,13 +24,24 @@ class ExitHandler extends Actor with Logging {
 
   def act() = loop {
     react {
-      case Watch(actor) => link(actor); reply(())
+      case Watch(actor) =>
+	watched += 1
+	link(actor)
+	reply(Watched)
       case Exit(from, ex: Exception) => {
 	ex.printStackTrace
 	error("Actor failed: " + ex)
+	tryExit()
       }
-      case Exit(from, _) => ()
-      case End => exit()
+      case Exit(from, _) => tryExit()
+     }
+  }
+
+  private def tryExit() {
+    watched -= 1
+    if (watched == 0) {
+      debug("Exit handler has nothing left to monitor. Exiting.")
+      exit()
     }
   }
 }

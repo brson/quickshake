@@ -53,12 +53,22 @@ object QuickShake {
     val decider = {
       new KeepClassDecider(options.keepNamespaces) with ShakeMixin
     }.start()
+    val terminator = new Terminator with ShakeMixin
+    terminator.start()
+    trait TerminationMixin extends ShakeMixin with terminator.TerminationMixin
+
+    def trackedActor(body: => Unit) = new Actor with TerminationMixin {
+      def act() = body
+
+      start()
+    }
 
     def decode(origFile: Option[File], classData: Array[Byte]) {
-      val decoder = new ClassDecoder(classData) with ShakeMixin
-      decoder.start
+      val decoder = {
+	new ClassDecoder(classData) with TerminationMixin
+      }.start()
 
-      actor {
+      trackedActor {
         decoder ! ClassDecoder.GetName
 
         react {
@@ -87,7 +97,7 @@ object QuickShake {
 		      case ClassDecoder.Method(methodName, classDeps, methodDeps) =>
 			methods += 1
 			val methodAccumulator = self
-			actor {
+			trackedActor {
 			  decider ! KeepClassDecider.DecideOnMethod(className, methodName)
 			  loop {
 			    react {
@@ -153,7 +163,7 @@ object QuickShake {
       
       (reader) =>
 
-	actor {
+	trackedActor {
           reader ! ClassDataReader.Search
 
           loop {
@@ -167,13 +177,19 @@ object QuickShake {
 	}
     }
 
-    readLine
+    while (true) {
+      readLine
 
-    logger.debug("Draining waiters")
-    decider ! KeepClassDecider.DrainWaiters
+      terminator !? Terminator.AwaitTermination
+      logger.debug("Draining waiters")
+      decider ! KeepClassDecider.DrainWaiters
+    }
+    readLine
+    terminator !? Terminator.AwaitTermination
+    logger.debug("Cleaning up")
     decider ! KeepClassDecider.End
     dataWriter ! ClassDataWriter.End
-    exitHandler ! ExitHandler.End
+    terminator ! Terminator.End
   }
 
 }
