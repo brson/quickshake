@@ -34,7 +34,6 @@ object Terminator {
 class Terminator extends Actor with Logging {
 
   import Terminator._
-  override def minLogLevel = LogLevel.Debug
 
   trait TerminationMixin extends Actor with Logging {
 
