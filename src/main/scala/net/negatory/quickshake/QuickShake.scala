@@ -102,17 +102,13 @@ object QuickShake {
 			    react {
 			      case KeepClassDecider.Kept =>
 				methodAccumulator ! KeepMethod(methodName)
-				var remainingClassDeps = classDeps
-				var remainingMethodDeps = methodDeps
-				loopWhile (remainingClassDeps != Nil) {
-				  decider ! KeepClassDecider.KeepClass(remainingClassDeps.head)
-				  remainingClassDeps = remainingClassDeps.tail
-				} andThen loopWhile (remainingMethodDeps != Nil) {
-				  decider ! KeepClassDecider.KeepMethod(remainingMethodDeps.head)
-				  remainingMethodDeps = remainingMethodDeps.tail
-				} andThen {
-				  exit()
+				classDeps foreach {
+				  decider ! KeepClassDecider.KeepClass(_)
 				}
+				methodDeps foreach {
+				  decider ! KeepClassDecider.KeepMethod(_)
+				}
+				exit()
 			      case KeepClassDecider.Discarded =>
 				methodAccumulator ! DiscardMethod
 				exit()
