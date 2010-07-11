@@ -6,7 +6,6 @@ import actors.Actor._
 object KeepClassDecider {
   case class KeepClass(className: ClassName)
   case class KeepMethod(methodName: String)
-  case object DoneKeeping
   case class DecideOnClass(className: ClassName)
   case class DecideOnMethod(className: ClassName, methodName: String)
   case object Kept
@@ -58,7 +57,6 @@ class KeepClassDecider(
       requester ! Kept
       requesterMap -= className
     }
-    reply(DoneKeeping)
   }
 
   private def keepMethod(methodName: String) {
@@ -70,7 +68,6 @@ class KeepClassDecider(
       requesterList foreach { _ ! Kept }
       methodRequesterMap -= methodName
     }
-    reply(DoneKeeping)
   }
 
   private def isInKeptNs(className: ClassName) = internalKeepNamespaces.foldLeft (false) {
@@ -84,15 +81,16 @@ class KeepClassDecider(
 
     // Check if this is in a preserved namespace
     if (isInKeptNs(className)) {
-      sender ! Kept
+      reply(Kept)
     }
     // Check if we've already been told to keep it
     else if (keepSet contains className) {
-      sender ! Kept
+      reply(Kept)
     }
     // Hold on to it for later
     else {
-      sender ! Waiting
+      reply(Waiting)
+      assert(!(requesterMap contains className))
       requesterMap put (className, sender)
     }
   }

@@ -40,7 +40,7 @@ class Terminator extends Actor with Logging {
 
     private var procState: ProcessState = Active
     private var stickyState: ProcessState = Active
-
+ 
     abstract override def start(): Actor = {
       val ret = super.start()
       Terminator.this ! Register(this)
@@ -58,16 +58,17 @@ class Terminator extends Actor with Logging {
 	  }
 	}
 
-	override def apply(x: Any) = if (handler.isDefinedAt(x)) {
-	  procState = Active
-	  stickyState = Active
-
-	  handler(x)
-	} else {
+	override def apply(x: Any) = if (x == CollectAndResetStickyState) {
 	  assert(x == CollectAndResetStickyState)
 
 	  reply(StickyState(stickyState))
 	  stickyState = procState
+	} else {
+	  assert(handler.isDefinedAt(x))
+	  procState = Active
+	  stickyState = Active
+
+	  handler(x)
 	}
       }
 
@@ -80,13 +81,13 @@ class Terminator extends Actor with Logging {
       lazy val f: PartialFunction[Any, Unit] = {
 	case CollectAndResetStickyState =>
 	  reply(StickyState(Done))
-	  react(f)
+	  exit()
 	case End =>
 	  debug("Exiting tracked actor " + this)
 	  super.exit()
       }
 
-      react(f)
+      super.react(f)
     }
 
   }
@@ -109,7 +110,7 @@ class Terminator extends Actor with Logging {
     debug("Awaiting termination")
     initiateControlWave(self, tracked)
     self.react {
-      case StickyState(Active) => 
+      case StickyState(Active) =>
 	Terminator.this ! AwaitAllPassive
 	self.react {
 	  case result => requester ! result

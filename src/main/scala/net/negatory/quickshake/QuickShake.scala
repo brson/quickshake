@@ -69,7 +69,7 @@ object QuickShake {
 
     def decode(classData: Array[Byte]) {
       val decoder = {
-	new ClassDecoder(classData) with TerminationMixin
+	new ClassDecoder(classData) with ShakeMixin
       }.start()
 
       trackedActor {
@@ -95,9 +95,6 @@ object QuickShake {
 		    react {
 		      case ClassDecoder.ClassDependency(depName) =>
 			decider ! KeepClassDecider.KeepClass(depName)
-			react {
-			  case KeepClassDecider.DoneKeeping => ()
-			}
 		      case ClassDecoder.Method(methodName, classDeps, methodDeps) =>
 			methods += 1
 			val methodAccumulator = self
@@ -113,15 +110,9 @@ object QuickShake {
 				loopWhile (remainingClassDeps != Nil) {
 				  decider ! KeepClassDecider.KeepClass(remainingClassDeps.head)
 				  remainingClassDeps = remainingClassDeps.tail
-				  react {
-				    case KeepClassDecider.DoneKeeping => ()
-				  }
 				} andThen loopWhile (remainingMethodDeps != Nil) {
 				  decider ! KeepClassDecider.KeepMethod(remainingMethodDeps.head)
 				  remainingMethodDeps = remainingMethodDeps.tail
-				  react {
-				    case KeepClassDecider.DoneKeeping => ()
-				  }
 				} andThen {
 				  exit()
 				}
@@ -185,12 +176,12 @@ object QuickShake {
 
     // TODO: Need to find a better way to estimate when we need
     // to begin probing for termination
-    readLine
+    //readLine
     var continue = true
     while (continue) {
       terminator !? Terminator.AwaitAllPassive match {
 	case Terminator.AllPassive =>
-	  logger.debug("Draining waiters")
+	  logger.info("Draining waiters")
 	  decider ! KeepClassDecider.DrainWaiters
 	case Terminator.AllDone => continue = false
       }
