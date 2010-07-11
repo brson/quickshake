@@ -82,8 +82,6 @@ object QuickShake {
 	    var methods = 0
 	    loop {
 	      react {
-		case KeepClassDecider.Waiting =>
-		  logger.debug("Waiting for decision on "  + className)
 		case KeepClassDecider.Kept =>
 		  logger.debug("Keeping " + className)
 		  decoder ! ClassDecoder.FindDependencies
@@ -102,7 +100,6 @@ object QuickShake {
 			  decider ! KeepClassDecider.DecideOnMethod(className, methodName)
 			  loop {
 			    react {
-			      case KeepClassDecider.Waiting => ()
 			      case KeepClassDecider.Kept =>
 				methodAccumulator ! KeepMethod(methodName)
 				var remainingClassDeps = classDeps

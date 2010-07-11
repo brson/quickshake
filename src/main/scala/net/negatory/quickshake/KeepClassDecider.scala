@@ -9,7 +9,6 @@ object KeepClassDecider {
   case class DecideOnClass(className: ClassName)
   case class DecideOnMethod(className: ClassName, methodName: String)
   case object Kept
-  case object Waiting
   case object Discarded
   case object DrainWaiters
   case object End
@@ -89,7 +88,6 @@ class KeepClassDecider(
     }
     // Hold on to it for later
     else {
-      reply(Waiting)
       assert(!(requesterMap contains className))
       requesterMap put (className, sender)
     }
@@ -105,7 +103,6 @@ class KeepClassDecider(
     } else if (methodSet contains methodName) {
       sender ! Kept
     } else {
-      sender ! Waiting
       val currentList = if (methodRequesterMap contains methodName) methodRequesterMap(methodName)
 			else Nil
       methodRequesterMap put (methodName, sender :: currentList)
