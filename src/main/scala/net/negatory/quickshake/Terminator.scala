@@ -26,7 +26,9 @@ object Terminator {
   case object AllDone
 
   case object CollectAndResetStickyState
-  case class StickyState(state: ProcessState)
+  case class StickyState(actor: Actor, state: ProcessState)
+  case class WaveResult(stillTracked: List[Actor], state: ProcessState)
+  case class KeepTracking(actors: List[Actor])
 
   case object End
 }
@@ -34,7 +36,7 @@ object Terminator {
 class Terminator extends Actor with Logging {
 
   import Terminator._
-
+  override def minLogLevel = LogLevel.Debug
   trait TerminationMixin extends Actor with Logging {
 
     private var procState: ProcessState = Active
@@ -60,7 +62,7 @@ class Terminator extends Actor with Logging {
 	override def apply(x: Any) = if (x == CollectAndResetStickyState) {
 	  assert(x == CollectAndResetStickyState)
 
-	  reply(StickyState(stickyState))
+	  reply(StickyState(self, stickyState))
 	  stickyState = procState
 	} else {
 	  assert(handler.isDefinedAt(x))
@@ -79,11 +81,11 @@ class Terminator extends Actor with Logging {
 
       lazy val f: PartialFunction[Any, Unit] = {
 	case CollectAndResetStickyState =>
-	  reply(StickyState(Done))
-	  exit()
-	case End =>
-	  debug("Exiting tracked actor " + this)
+	  reply(StickyState(self, Done))
 	  super.exit()
+	/*case End =>
+	  debug("Exiting tracked actor " + this)
+	  super.exit()*/
       }
 
       super.react(f)
@@ -97,8 +99,12 @@ class Terminator extends Actor with Logging {
     loop {
       react {
 	case Register(actor) => tracked = actor :: tracked
-	case AwaitAllPassive => awaitAllPassive(sender, tracked)
-	case End => endActors(tracked); exit()
+	case AwaitAllPassive =>
+	  val currentTracked = tracked
+	  tracked = Nil
+	  awaitAllPassive(sender, currentTracked)
+	case KeepTracking(actors) => tracked = tracked ::: actors
+	case End => exit()
       }
     }
   }
@@ -109,15 +115,17 @@ class Terminator extends Actor with Logging {
     debug("Awaiting termination")
     initiateControlWave(self, tracked)
     self.react {
-      case StickyState(Active) =>
+      case WaveResult(stillTracking, Active) =>
+	Terminator.this ! KeepTracking(stillTracking)
 	Terminator.this ! AwaitAllPassive
 	self.react {
 	  case result => requester ! result
 	}
-      case StickyState(Passive) =>
+      case WaveResult(stillTracking, Passive) =>
+	Terminator.this ! KeepTracking(stillTracking)
 	debug("All actors passive")
 	requester ! AllPassive
-      case StickyState(Done) =>
+      case WaveResult(_, Done) =>
 	debug("All actors done")
 	requester ! AllDone
     }
@@ -136,21 +144,22 @@ class Terminator extends Actor with Logging {
     var done = 0
     def recvd = passive + active + done
 
+    var stillTracked: List[Actor] = Nil
+
     loopWhile (recvd < total) {
       self.react {
-	case StickyState(Active) => active += 1
-	case StickyState(Passive) => passive += 1
-	case StickyState(Done) => done += 1
+	case StickyState(a, Active) => active += 1; stillTracked = a :: stillTracked
+	case StickyState(a, Passive) => passive += 1; stillTracked = a :: stillTracked
+	case StickyState(a, Done) => done += 1
       }
     } andThen {
       debug("Found " + active + " active " + passive + " passive " + done + " done")
-      requester ! StickyState {
+      requester ! WaveResult(stillTracked, 
 	if (active > 0) Active
 	else if (passive > 0) Passive
 	else Done
-      }
+      )
     }
   }
 
-  def endActors(tracked: List[Actor]): Unit = tracked foreach { _ ! End }
 }

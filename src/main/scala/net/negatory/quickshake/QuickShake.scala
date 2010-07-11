@@ -98,7 +98,7 @@ object QuickShake {
 		      case ClassDecoder.Method(methodName, classDeps, methodDeps) =>
 			methods += 1
 			val methodAccumulator = self
-			trackedActor {
+			actor {
 			  decider ! KeepClassDecider.DecideOnMethod(className, methodName)
 			  loop {
 			    react {
@@ -191,8 +191,6 @@ object QuickShake {
     decider ! KeepClassDecider.End
     dataWriter !? ClassDataWriter.End
 
-    // TODO: Need to shutdown cleanly
-    Runtime.getRuntime().exit(0)
     terminator ! Terminator.End
   }
 
