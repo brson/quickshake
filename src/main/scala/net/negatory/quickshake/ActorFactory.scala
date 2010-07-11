@@ -2,6 +2,9 @@ package net.negatory.quickshake
 
 class ActorFactory(val logger: Logger) {
 
+  import actors.Actor
+  import actors.Actor._
+
   val exitHandler = new ExitHandler with logger.LoggerMixin
   exitHandler.start()
 
@@ -27,13 +30,15 @@ class ActorFactory(val logger: Logger) {
     new JarDataWriter(jar) with ShakeMixin
   }.start()
   def newKeepClassDecider(keptNamespaces: List[String]) = {
-    new KeepClassDecider(keptNamespaces) with ShakeMixin
-  }.start()
+    val c = new KeepClassDecider(keptNamespaces) with ShakeMixin
+    c.start()
+    c
+  }
   def newStatsTracker() = {
     new StatsTracker with ShakeMixin
   }.start()
 
-  def trackedActor(body: => Unit) = new actors.Actor with TerminationMixin {
+  def trackedActor(body: => Unit) = new Actor with TerminationMixin {
     def act() = body
     start()
   }
@@ -42,4 +47,37 @@ class ActorFactory(val logger: Logger) {
     new ClassDecoder(classData) with ShakeMixin
   }.start()
 
+  def newMethodCoordinator(
+    methodProps: (ClassName, String, List[ClassName], List[String]),
+    decider: KeepClassDecider,
+    methodAccumulator: Actor
+  ) = trackedActor {
+
+    val (className, methodName, classDeps, methodDeps) = methodProps
+    
+    decider ! KeepClassDecider.DecideOnMethod(className, methodName)
+    react {
+      case KeepClassDecider.Kept =>
+	methodAccumulator ! MethodAccumulator.KeepMethod(methodName)
+	classDeps foreach {
+	  decider ! KeepClassDecider.KeepClass(_)
+	}
+	methodDeps foreach {
+	  decider ! KeepClassDecider.KeepMethod(_)
+	}
+	exit()
+      case KeepClassDecider.Discarded =>
+	methodAccumulator ! MethodAccumulator.DiscardMethod
+	exit()
+    }
+  }
+
+
+}
+
+object MethodAccumulator {
+  // These will be used to track the set of methods
+  // on a class that need to be retained
+  case class KeepMethod(methodName: String)
+  case object DiscardMethod
 }

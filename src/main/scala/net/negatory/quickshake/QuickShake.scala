@@ -65,10 +65,6 @@ object QuickShake {
 	      case KeepClassDecider.Kept =>
 		logger.debug("Keeping " + className)
 		decoder ! ClassDecoder.FindDependencies
-		// These will be used to track the set of methods
-		// on this class that need to be retained
-		case class KeepMethod(methodName: String)
-		case object DiscardMethod
 		loop {
 		  react {
 		    case ClassDecoder.ClassDependency(depName) =>
@@ -76,23 +72,11 @@ object QuickShake {
 		    case ClassDecoder.Method(methodName, classDeps, methodDeps) =>
 		      methods += 1
 		      val methodAccumulator = self
-		      trackedActor {
-			decider ! KeepClassDecider.DecideOnMethod(className, methodName)
-			react {
-			  case KeepClassDecider.Kept =>
-			    methodAccumulator ! KeepMethod(methodName)
-			    classDeps foreach {
-			      decider ! KeepClassDecider.KeepClass(_)
-			    }
-			    methodDeps foreach {
-			      decider ! KeepClassDecider.KeepMethod(_)
-			    }
-			    exit()
-			  case KeepClassDecider.Discarded =>
-			    methodAccumulator ! DiscardMethod
-			    exit()
-			}
-		      }
+		      actorFactory.newMethodCoordinator (
+			(className, methodName, classDeps, methodDeps),
+			decider,
+			methodAccumulator
+		      )
 		    case ClassDecoder.End =>
 		      // Get the list of methods to keep
 		      import collection.mutable.HashSet
@@ -101,9 +85,9 @@ object QuickShake {
 		      loopWhile(methodsDecided < methods) {
 			react {
 			  val f: PartialFunction[Any, Unit] = {
-			    case KeepMethod(methodName) =>
+			    case MethodAccumulator.KeepMethod(methodName) =>
 			      methodsKept += methodName
-			    case DiscardMethod => ()
+			    case MethodAccumulator.DiscardMethod => ()
 			  }
 
 			  f andThen { _ => methodsDecided += 1 }
