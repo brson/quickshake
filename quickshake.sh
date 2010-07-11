@@ -14,4 +14,7 @@ export CLASSPATH=$QUICKSHAKE_CP:$SCALA_CP:$LIB_CP
 
 MAIN=net.negatory.quickshake.QuickShake
 
-java $MAIN $@
+PROFILEOPTS=
+#PROFILEOPTS='-agentlib:hprof=cpu=samples'
+
+java $PROFILEOPTS $MAIN $@
