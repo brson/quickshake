@@ -48,16 +48,10 @@ object QuickShake {
 
     type TerminationMixin = actorFactory.TerminationMixin
 
-    def trackedActor(body: => Unit) = new Actor with TerminationMixin {
-      def act() = body
-
-      start()
-    }
+    import actorFactory.trackedActor
 
     def decode(classData: Array[Byte]) {
-      val decoder = {
-	new ClassDecoder(classData) with ShakeMixin
-      }.start()
+      val decoder = actorFactory.newDecoder(classData)
 
       trackedActor {
         decoder ! ClassDecoder.GetName

@@ -32,4 +32,14 @@ class ActorFactory(val logger: Logger) {
   def newStatsTracker() = {
     new StatsTracker with ShakeMixin
   }.start()
+
+  def trackedActor(body: => Unit) = new actors.Actor with TerminationMixin {
+    def act() = body
+    start()
+  }
+
+  def newDecoder(classData: Array[Byte]) = {
+    new ClassDecoder(classData) with ShakeMixin
+  }.start()
+
 }
