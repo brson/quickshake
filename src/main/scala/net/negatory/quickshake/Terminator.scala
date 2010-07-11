@@ -34,6 +34,7 @@ object Terminator {
 class Terminator extends Actor with Logging {
 
   import Terminator._
+  override def minLogLevel = LogLevel.Debug
 
   trait TerminationMixin extends Actor with Logging {
 
@@ -108,7 +109,11 @@ class Terminator extends Actor with Logging {
     debug("Awaiting termination")
     initiateControlWave(self, tracked)
     self.react {
-      case StickyState(Active) => awaitAllPassive(requester, tracked)
+      case StickyState(Active) => 
+	Terminator.this ! AwaitAllPassive
+	self.react {
+	  case result => requester ! result
+	}
       case StickyState(Passive) =>
 	debug("All actors passive")
 	requester ! AllPassive

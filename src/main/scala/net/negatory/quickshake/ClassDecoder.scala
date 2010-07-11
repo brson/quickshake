@@ -222,7 +222,7 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
 	  }
 
 	  override def visitEnd() {
-	    sender ! Method(methodName, classDeps, methodDeps)
+	    //sender ! Method(methodName, classDeps, methodDeps)
 	  }
 	}
       }

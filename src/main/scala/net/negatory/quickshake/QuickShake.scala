@@ -185,7 +185,7 @@ object QuickShake {
 
     // TODO: Need to find a better way to estimate when we need
     // to begin probing for termination
-
+    readLine
     var continue = true
     while (continue) {
       terminator !? Terminator.AwaitAllPassive match {
