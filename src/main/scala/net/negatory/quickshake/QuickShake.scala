@@ -33,21 +33,16 @@ object QuickShake {
     type ShakeMixin = actorFactory.ShakeMixin
 
     val dataReaders = options.inputs map {
-      (in: File) => {
-	if (in.isDirectory) {
-	  new DirectoryDataReader(in) with ShakeMixin
-	} else if (in.isFile) {
-	  new JarDataReader(in) with ShakeMixin
-	} else {
-	  error("Input " + in.getPath + " not found")
-	}
-      }.start()
+      (in: File) =>
+	if (in.isDirectory) actorFactory.newDirDataReader(in)
+	else if (in.isFile) actorFactory.newJarDataReader(in)
+	else error("Input " + in.getPath + " not found")
     }
     val dataWriter = {
       val isJar = options.output.getAbsolutePath.endsWith(".jar")
-      if (isJar) new JarDataWriter(options.output) with ShakeMixin
-      else new DirectoryDataWriter(options.output) with ShakeMixin
-    }.start()
+      if (isJar) actorFactory.newJarDataWriter(options.output)
+      else actorFactory.newDirDataWriter(options.output)
+    }
     val decider = actorFactory.newKeepClassDecider(options.keepNamespaces)
     val statsTracker = actorFactory.newStatsTracker()
 

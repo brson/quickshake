@@ -21,10 +21,10 @@ class ActorFactory(val logger: Logger) {
     new JarDataReader(jar) with ShakeMixin
   }.start()
   def newDirDataWriter(dir: File) = {
-    new DirectoryDataReader(dir) with ShakeMixin
+    new DirectoryDataWriter(dir) with ShakeMixin
   }.start()
   def newJarDataWriter(jar: File) = {
-    new JarDataReader(jar) with ShakeMixin
+    new JarDataWriter(jar) with ShakeMixin
   }.start()
   def newKeepClassDecider(keptNamespaces: List[String]) = {
     new KeepClassDecider(keptNamespaces) with ShakeMixin
