@@ -2,6 +2,8 @@ package net.negatory.quickshake
 
 import actors.Actor
 import actors.Actor._
+import actors.OutputChannel
+
 
 /*
  * Implements Mattern's
@@ -25,10 +27,14 @@ object Terminator {
   case object AllPassive
   case object AllDone
 
-  case object CollectAndResetStickyState
-  case class StickyState(actor: Actor, state: ProcessState)
-  case class WaveResult(stillTracked: List[Actor], state: ProcessState)
-  case class KeepTracking(actors: List[Actor])
+  private case class CollectAndResetStickyState(
+    remaining: List[Actor],
+    keep: List[Actor],
+    state: ProcessState,
+    requester: OutputChannel[Any]
+  )
+  private case class WaveResult(stillTracked: List[Actor], state: ProcessState)
+  private case class KeepTracking(actors: List[Actor])
 
   case object End
 }
@@ -54,23 +60,30 @@ class Terminator extends Actor with Logging {
       val h = new PartialFunction[Any, Unit] {
 	override def isDefinedAt(x: Any) = handler.isDefinedAt(x) || {
 	  x match {
-	    case CollectAndResetStickyState => true
+	    case CollectAndResetStickyState(_, _, _, _) => true
 	    case _ => false
 	  }
 	}
 
-	override def apply(x: Any) = if (x == CollectAndResetStickyState) {
-	  assert(x == CollectAndResetStickyState)
+	override def apply(x: Any) = x match {
+	  case CollectAndResetStickyState(remaining, keep, state, requester) =>
+	    val newState = if (stickyState == Active || state == Active) Active
+			   else Passive
+	    val newKeep = self :: keep
+	    if (remaining != Nil) {
+	      remaining.head ! CollectAndResetStickyState(remaining.tail, newKeep, newState, requester)
+	    } else {
+	      requester ! WaveResult(newKeep, newState)
+	    }
 
-	  reply(StickyState(self, stickyState))
-	  stickyState = procState
-	  react(handler)
-	} else {
-	  assert(handler.isDefinedAt(x))
-	  procState = Active
-	  stickyState = Active
+	    stickyState = procState
+	    react(handler)
+	  case _ =>
+	    assert(handler.isDefinedAt(x))
+	    procState = Active
+	    stickyState = Active
 
-	  handler(x)
+	    handler(x)
 	}
       }
 
@@ -81,12 +94,16 @@ class Terminator extends Actor with Logging {
       debug("Waiting for end message to exit tracked actor " + this)
 
       lazy val f: PartialFunction[Any, Unit] = {
-	case CollectAndResetStickyState =>
-	  reply(StickyState(self, Done))
+	case CollectAndResetStickyState(remaining, keep, state, requester) =>
+	  val newState = if (state == Active) Active
+			 else if (state == Passive) Passive
+			 else Done
+	  if (remaining != Nil) {
+	    remaining.head ! CollectAndResetStickyState(remaining.tail, keep, newState, requester)
+	  } else {
+	    requester ! WaveResult(keep, newState)
+	  }
 	  super.exit()
-	/*case End =>
-	  debug("Exiting tracked actor " + this)
-	  super.exit()*/
       }
 
       super.react(f)
@@ -110,8 +127,6 @@ class Terminator extends Actor with Logging {
     }
   }
 
-  import actors.OutputChannel
-
   def awaitAllPassive(requester: OutputChannel[Any], tracked: List[Actor]): Unit = actor {
     debug("Awaiting termination")
     initiateControlWave(self, tracked)
@@ -133,34 +148,13 @@ class Terminator extends Actor with Logging {
   }
 
   def initiateControlWave(requester: OutputChannel[Any], tracked: List[Actor]) = actor {
-    debug("Initiating control wave")
-    val total = tracked.foldLeft (0) {
-      (t, a) => 
-	a ! CollectAndResetStickyState
-	t + 1
-    }
 
-    var active = 0
-    var passive = 0
-    var done = 0
-    def recvd = passive + active + done
-
-    var stillTracked: List[Actor] = Nil
-
-    loopWhile (recvd < total) {
-      self.react {
-	case StickyState(a, Active) => active += 1; stillTracked = a :: stillTracked
-	case StickyState(a, Passive) => passive += 1; stillTracked = a :: stillTracked
-	case StickyState(a, Done) => done += 1
-      }
-    } andThen {
-      debug("Found " + active + " active " + passive + " passive " + done + " done")
-      requester ! WaveResult(stillTracked, 
-	if (active > 0) Active
-	else if (passive > 0) Passive
-	else Done
-      )
-    }
+    tracked.head ! CollectAndResetStickyState (
+      tracked.tail,
+      Nil,
+      Done,
+      requester
+    )
   }
 
 }
