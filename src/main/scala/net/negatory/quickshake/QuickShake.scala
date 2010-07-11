@@ -19,7 +19,6 @@ object QuickShake {
     loggerFactory: (LogLevel.LogLevel) => Logger
   ) {
     val logger = loggerFactory(options.logLevel)
-    import logger.LoggerMixin
 
     logger.info("inputs:")
     options.inputs foreach {dir => logger.info(dir.toString)}
@@ -27,12 +26,11 @@ object QuickShake {
     logger.info("keepNamespaces:")
     options.keepNamespaces foreach {ns => logger.info(ns)}
 
-    val exitHandler = new ExitHandler with LoggerMixin
-    exitHandler.start()
+    val actorFactory = new ActorFactory(logger)
 
-    import exitHandler.TrapMixin
+    val terminator = actorFactory.terminator
 
-    trait ShakeMixin extends LoggerMixin with TrapMixin
+    type ShakeMixin = actorFactory.ShakeMixin
 
     val dataReaders = options.inputs map {
       (in: File) => {
@@ -50,17 +48,11 @@ object QuickShake {
       if (isJar) new JarDataWriter(options.output) with ShakeMixin
       else new DirectoryDataWriter(options.output) with ShakeMixin
     }.start()
-    val decider = {
-      new KeepClassDecider(options.keepNamespaces) with ShakeMixin
-    }.start()
-    val statsTracker = {
-      new StatsTracker with ShakeMixin
-    }.start()
+    val decider = actorFactory.newKeepClassDecider(options.keepNamespaces)
+    val statsTracker = actorFactory.newStatsTracker()
 
+    type TerminationMixin = actorFactory.TerminationMixin
 
-    val terminator = new Terminator with ShakeMixin
-    terminator.start()
-    trait TerminationMixin extends ShakeMixin with terminator.TerminationMixin
     def trackedActor(body: => Unit) = new Actor with TerminationMixin {
       def act() = body
 
