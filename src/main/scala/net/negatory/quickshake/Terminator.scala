@@ -64,6 +64,7 @@ class Terminator extends Actor with Logging {
 
 	  reply(StickyState(self, stickyState))
 	  stickyState = procState
+	  react(handler)
 	} else {
 	  assert(handler.isDefinedAt(x))
 	  procState = Active
