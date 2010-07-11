@@ -80,69 +80,65 @@ object QuickShake {
 	    logger.debug("Decoded name of class " + className)
 	    decider ! KeepClassDecider.DecideOnClass(className)
 	    var methods = 0
-	    loop {
-	      react {
-		case KeepClassDecider.Kept =>
-		  logger.debug("Keeping " + className)
-		  decoder ! ClassDecoder.FindDependencies
-		  // These will be used to track the set of methods
-		  // on this class that need to be retained
-		  case class KeepMethod(methodName: String)
-		  case object DiscardMethod
-		  loop {
-		    react {
-		      case ClassDecoder.ClassDependency(depName) =>
-			decider ! KeepClassDecider.KeepClass(depName)
-		      case ClassDecoder.Method(methodName, classDeps, methodDeps) =>
-			methods += 1
-			val methodAccumulator = self
-			actor {
-			  decider ! KeepClassDecider.DecideOnMethod(className, methodName)
-			  loop {
-			    react {
-			      case KeepClassDecider.Kept =>
-				methodAccumulator ! KeepMethod(methodName)
-				classDeps foreach {
-				  decider ! KeepClassDecider.KeepClass(_)
-				}
-				methodDeps foreach {
-				  decider ! KeepClassDecider.KeepMethod(_)
-				}
-				exit()
-			      case KeepClassDecider.Discarded =>
-				methodAccumulator ! DiscardMethod
-				exit()
+	    react {
+	      case KeepClassDecider.Kept =>
+		logger.debug("Keeping " + className)
+		decoder ! ClassDecoder.FindDependencies
+		// These will be used to track the set of methods
+		// on this class that need to be retained
+		case class KeepMethod(methodName: String)
+		case object DiscardMethod
+		loop {
+		  react {
+		    case ClassDecoder.ClassDependency(depName) =>
+		      decider ! KeepClassDecider.KeepClass(depName)
+		    case ClassDecoder.Method(methodName, classDeps, methodDeps) =>
+		      methods += 1
+		      val methodAccumulator = self
+		      actor {
+			decider ! KeepClassDecider.DecideOnMethod(className, methodName)
+			react {
+			  case KeepClassDecider.Kept =>
+			    methodAccumulator ! KeepMethod(methodName)
+			    classDeps foreach {
+			      decider ! KeepClassDecider.KeepClass(_)
 			    }
-			  }
+			    methodDeps foreach {
+			      decider ! KeepClassDecider.KeepMethod(_)
+			    }
+			    exit()
+			  case KeepClassDecider.Discarded =>
+			    methodAccumulator ! DiscardMethod
+			    exit()
 			}
-		      case ClassDecoder.End =>
-			// Get the list of methods to keep
-			import collection.mutable.HashSet
-			var methodsDecided = 0
-			val methodsKept = new HashSet[String]
-			loopWhile(methodsDecided < methods) {
-			  react {
-			    val f: PartialFunction[Any, Unit] = {
-			      case KeepMethod(methodName) =>
-				methodsKept += methodName
-			      case DiscardMethod => ()
-			    }
+		      }
+		    case ClassDecoder.End =>
+		      // Get the list of methods to keep
+		      import collection.mutable.HashSet
+		      var methodsDecided = 0
+		      val methodsKept = new HashSet[String]
+		      loopWhile(methodsDecided < methods) {
+			react {
+			  val f: PartialFunction[Any, Unit] = {
+			    case KeepMethod(methodName) =>
+			      methodsKept += methodName
+			    case DiscardMethod => ()
+			  }
 
-			    f andThen { _ => methodsDecided += 1 }
-			  }
-			} andThen {
-			  dataWriter ! ClassDataWriter.AddClass(className, classData)
-			  statsTracker ! StatsTracker.KeptClass(methodsKept.size)
-			  exit()
+			  f andThen { _ => methodsDecided += 1 }
 			}
-		    }
+		      } andThen {
+			dataWriter ! ClassDataWriter.AddClass(className, classData)
+			statsTracker ! StatsTracker.KeptClass(methodsKept.size)
+			exit()
+		      }
 		  }
-		case KeepClassDecider.Discarded => 
-		  logger.debug("Discarding " + className)
-	          decoder ! ClassDecoder.Discard
-		  statsTracker ! StatsTracker.DiscardedClass
-		  exit()
-	      }
+		}
+	      case KeepClassDecider.Discarded => 
+		logger.debug("Discarding " + className)
+		decoder ! ClassDecoder.Discard
+		statsTracker ! StatsTracker.DiscardedClass
+		exit()
 	    }
         }
       }
