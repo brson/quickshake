@@ -176,12 +176,11 @@ object QuickShake {
 
     // TODO: Need to find a better way to estimate when we need
     // to begin probing for termination
-    //readLine
     var continue = true
     while (continue) {
       terminator !? Terminator.AwaitAllPassive match {
 	case Terminator.AllPassive =>
-	  logger.info("Draining waiters")
+	  logger.debug("Draining waiters")
 	  decider ! KeepClassDecider.DrainWaiters
 	case Terminator.AllDone => continue = false
       }
