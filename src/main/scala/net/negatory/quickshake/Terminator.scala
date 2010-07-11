@@ -103,7 +103,7 @@ class Terminator extends Actor with Logging {
 	  } else {
 	    requester ! WaveResult(keep, newState)
 	  }
-	  super.exit()
+	  //super.exit()
       }
 
       super.react(f)

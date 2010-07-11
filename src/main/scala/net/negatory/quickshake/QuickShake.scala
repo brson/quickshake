@@ -95,7 +95,7 @@ object QuickShake {
 		    case ClassDecoder.Method(methodName, classDeps, methodDeps) =>
 		      methods += 1
 		      val methodAccumulator = self
-		      actor {
+		      trackedActor {
 			decider ! KeepClassDecider.DecideOnMethod(className, methodName)
 			react {
 			  case KeepClassDecider.Kept =>
@@ -179,7 +179,7 @@ object QuickShake {
     statsTracker ! StatsTracker.End
     decider ! KeepClassDecider.End
     dataWriter !? ClassDataWriter.End
-
+    Runtime.getRuntime.exit(0)
     terminator ! Terminator.End
   }
 
