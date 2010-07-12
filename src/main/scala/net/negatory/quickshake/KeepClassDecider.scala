@@ -10,6 +10,8 @@ object KeepClassDecider {
   case object Kept
   case object Discarded
   case class DecideOnMethod(props: MethodProps)
+  case class KeptMethod(props: MethodProps)
+  case class DiscardedMethod(props: MethodProps)
   case object DrainWaiters
   case object End
 }
@@ -68,7 +70,7 @@ class KeepClassDecider(
       requesterList foreach {
 	item =>
 	  val (props, requester) = item
-	  requester ! Kept
+	  requester ! KeptMethod(props)
       }
       methodRequesterMap -= methodName
     }
@@ -103,9 +105,9 @@ class KeepClassDecider(
 
     debug("Deciding whether to keep method " + methodName)
     if (isInKeptNs(className)) {
-      sender ! Kept
+      sender ! KeptMethod(props)
     } else if (methodSet contains methodName) {
-      sender ! Kept
+      sender ! KeptMethod(props)
     } else {
       val currentList = if (methodRequesterMap contains methodName) methodRequesterMap(methodName)
 			else Nil
@@ -121,7 +123,7 @@ class KeepClassDecider(
       (_, requests) <- methodRequesterMap;
       (props, requester) <- requests
     ) {
-      requester ! Discarded
+      requester ! DiscardedMethod(props)
     }
     methodRequesterMap.clear()
 

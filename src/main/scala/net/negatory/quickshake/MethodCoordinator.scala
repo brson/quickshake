@@ -22,7 +22,7 @@ class MethodCoordinator(
     
     decider ! KeepClassDecider.DecideOnMethod(props)
     react {
-      case KeepClassDecider.Kept =>
+      case KeepClassDecider.KeptMethod(_) =>
 	methodAccumulator ! MethodCoordinator.KeepMethod(methodName)
 	classDeps foreach {
 	  decider ! KeepClassDecider.KeepClass(_)
@@ -31,7 +31,7 @@ class MethodCoordinator(
 	  decider ! KeepClassDecider.KeepMethod(_)
 	}
 	exit()
-      case KeepClassDecider.Discarded =>
+      case KeepClassDecider.DiscardedMethod(_) =>
 	methodAccumulator ! MethodCoordinator.DiscardMethod
 	exit()
     }
