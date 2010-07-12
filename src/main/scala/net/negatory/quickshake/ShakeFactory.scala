@@ -1,20 +1,17 @@
 package net.negatory.quickshake
 
-class ShakeFactory(
-  options: Options,
-  loggerFactory: (LogLevel.LogLevel) => Logger
-) {
+import LogLevel._
+
+class ShakeFactory(val logger: Logger) {
 
   import actors.Actor
   import actors.Actor._
-
-  val logger = loggerFactory(options.logLevel)
 
   val exitHandler = new ExitHandler with logger.LoggerMixin { start }
 
   trait ShakeMixin extends logger.LoggerMixin with exitHandler.TrapMixin
 
-  val decider = new KeepClassDecider(options.keepNamespaces) with ShakeMixin { start }
+  def newDecider(keepNamespaces: List[String]) = new KeepClassDecider(keepNamespaces) with ShakeMixin { start }
   val statsTracker = new StatsTracker with ShakeMixin { start }
 
   import java.io.File
@@ -37,6 +34,7 @@ class ShakeFactory(
   def newClassCoordinator(
     classData: Array[Byte],
     decoder: ClassDecoder,
+    decider: KeepClassDecider,
     dataWriter: ClassDataWriter
   ) = trackedActor {
     decoder ! ClassDecoder.GetName
@@ -59,7 +57,8 @@ class ShakeFactory(
 		  val methodAccumulator = self
 		  newMethodCoordinator (
 		    (className, methodName, classDeps, methodDeps),
-		    methodAccumulator
+		    methodAccumulator,
+		    decider
 		  )
 		case ClassDecoder.End =>
 		  // Get the list of methods to keep
@@ -94,7 +93,8 @@ class ShakeFactory(
 
   def newMethodCoordinator(
     methodProps: (ClassName, String, List[ClassName], List[String]),
-    methodAccumulator: Actor
+    methodAccumulator: Actor,
+    decider: KeepClassDecider
   ) = trackedActor {
 
     val (className, methodName, classDeps, methodDeps) = methodProps

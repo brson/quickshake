@@ -18,9 +18,9 @@ object QuickShake {
     options: Options,
     loggerFactory: (LogLevel.LogLevel) => Logger
   ) {
-    val shakeFactory = new ShakeFactory(options, loggerFactory)
+    val logger = loggerFactory(options.logLevel)
 
-    val logger = shakeFactory.logger
+    val shakeFactory = new ShakeFactory(logger)
 
     logger.info("inputs:")
     options.inputs foreach {dir => logger.info(dir.toString)}
@@ -43,7 +43,7 @@ object QuickShake {
       if (isJar) shakeFactory.newJarDataWriter(options.output)
       else shakeFactory.newDirDataWriter(options.output)
     }
-    val decider = shakeFactory.decider
+    val decider = shakeFactory.newDecider(options.keepNamespaces)
     val statsTracker = shakeFactory.statsTracker
 
     // Create a client for each reader that processes the input classes.
@@ -60,7 +60,9 @@ object QuickShake {
             react {
               case ClassDataReader.Visit(classData) =>
 		val decoder = shakeFactory.newDecoder(classData)
-		shakeFactory.newClassCoordinator(classData, decoder, dataWriter)
+		shakeFactory.newClassCoordinator(
+		  classData, decoder, decider, dataWriter
+		)
               case ClassDataReader.End =>
 		exit()
             }
