@@ -15,40 +15,24 @@ class ShakeFactory(
 
   trait ShakeMixin extends logger.LoggerMixin with exitHandler.TrapMixin
 
-  val terminator = new Terminator with ShakeMixin
-  terminator.start()
+  val terminator = new Terminator with ShakeMixin { start }
+  val decider = new KeepClassDecider(options.keepNamespaces) with ShakeMixin { start }
+  val statsTracker = new StatsTracker with ShakeMixin { start }
 
   trait TerminationMixin extends ShakeMixin with terminator.TerminationMixin
 
-  val decider = new KeepClassDecider(options.keepNamespaces) with ShakeMixin
-  decider.start()
-
-  val statsTracker = new StatsTracker with ShakeMixin
-  statsTracker.start()
-
   import java.io.File
 
-  def newDirDataReader(dir: File) = {
-    new DirectoryDataReader(dir) with ShakeMixin
-  }.start()
-  def newJarDataReader(jar: File) = {
-    new JarDataReader(jar) with ShakeMixin
-  }.start()
-  def newDirDataWriter(dir: File) = {
-    new DirectoryDataWriter(dir) with ShakeMixin
-  }.start()
-  def newJarDataWriter(jar: File) = {
-    new JarDataWriter(jar) with ShakeMixin
-  }.start()
+  def newDirDataReader(dir: File) = new DirectoryDataReader(dir) with ShakeMixin { start }
+  def newJarDataReader(jar: File) = new JarDataReader(jar) with ShakeMixin { start }
+  def newDirDataWriter(dir: File) = new DirectoryDataWriter(dir) with ShakeMixin { start }
+  def newJarDataWriter(jar: File) = new JarDataWriter(jar) with ShakeMixin { start }
+  def newDecoder(classData: Array[Byte]) = new ClassDecoder(classData) with ShakeMixin { start }
 
   def trackedActor(body: => Unit) = new Actor with TerminationMixin {
     def act() = body
     start()
   }
-
-  def newDecoder(classData: Array[Byte]) = {
-    new ClassDecoder(classData) with ShakeMixin
-  }.start()
 
   def newMethodCoordinator(
     methodProps: (ClassName, String, List[ClassName], List[String]),
