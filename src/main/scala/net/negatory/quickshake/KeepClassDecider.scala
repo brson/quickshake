@@ -45,7 +45,8 @@ class KeepClassDecider(
   private val keepSet = new HashSet[ClassName]
   private val requesterMap = new HashMap[ClassName, OutputChannel[Any]]
   private val methodSet = new HashSet[String]
-  private val methodRequesterMap = new HashMap[String, List[OutputChannel[Any]]]
+  private val methodRequesterMap =
+    new HashMap[String, List[(MethodProps, OutputChannel[Any])]]
   
   private def keepClass(className: ClassName) {
 
@@ -64,7 +65,11 @@ class KeepClassDecider(
 
     if (methodRequesterMap contains methodName) {
       val requesterList = methodRequesterMap(methodName)
-      requesterList foreach { _ ! Kept }
+      requesterList foreach {
+	item =>
+	  val (props, requester) = item
+	  requester ! Kept
+      }
       methodRequesterMap -= methodName
     }
   }
@@ -104,7 +109,7 @@ class KeepClassDecider(
     } else {
       val currentList = if (methodRequesterMap contains methodName) methodRequesterMap(methodName)
 			else Nil
-      methodRequesterMap put (methodName, sender :: currentList)
+      methodRequesterMap put (methodName, (props, sender) :: currentList)
       
     }
   }
@@ -114,7 +119,7 @@ class KeepClassDecider(
 
     for (
       (_, requests) <- methodRequesterMap;
-      requester <- requests
+      (props, requester) <- requests
     ) {
       requester ! Discarded
     }
