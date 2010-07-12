@@ -19,8 +19,9 @@ object QuickShake {
     loggerFactory: (LogLevel.LogLevel) => Logger
   ) {
     val logger = loggerFactory(options.logLevel)
+    val shaker = new Shaker(options, logger)
 
-    val shakeFactory = new ShakeFactory(logger)
+    val shakeFactory = shaker.shakeFactory
 
     logger.info("inputs:")
     options.inputs foreach {dir => logger.info(dir.toString)}
@@ -28,23 +29,11 @@ object QuickShake {
     logger.info("keepNamespaces:")
     options.keepNamespaces foreach {ns => logger.info(ns)}
 
-    val terminator = shakeFactory.terminator
-
-    type ShakeMixin = shakeFactory.ShakeMixin
-
-    val dataReaders = options.inputs map {
-      (in: File) =>
-	if (in.isDirectory) shakeFactory.newDirDataReader(in)
-	else if (in.isFile) shakeFactory.newJarDataReader(in)
-	else error("Input " + in.getPath + " not found")
-    }
-    val dataWriter = {
-      val isJar = options.output.getAbsolutePath.endsWith(".jar")
-      if (isJar) shakeFactory.newJarDataWriter(options.output)
-      else shakeFactory.newDirDataWriter(options.output)
-    }
-    val decider = shakeFactory.newDecider(options.keepNamespaces)
-    val statsTracker = shakeFactory.newStatsTracker()
+    val terminator = shaker.terminator
+    val dataReaders = shaker.dataReaders
+    val dataWriter = shaker.dataWriter
+    val decider = shaker.decider
+    val statsTracker = shaker.statsTracker
 
     // Create a client for each reader that processes the input classes.
     dataReaders map { 
