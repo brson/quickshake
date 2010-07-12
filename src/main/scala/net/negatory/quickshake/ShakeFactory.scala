@@ -10,16 +10,12 @@ class ShakeFactory(
 
   val logger = loggerFactory(options.logLevel)
 
-  val exitHandler = new ExitHandler with logger.LoggerMixin
-  exitHandler.start()
+  val exitHandler = new ExitHandler with logger.LoggerMixin { start }
 
   trait ShakeMixin extends logger.LoggerMixin with exitHandler.TrapMixin
 
-  val terminator = new Terminator with ShakeMixin { start }
   val decider = new KeepClassDecider(options.keepNamespaces) with ShakeMixin { start }
   val statsTracker = new StatsTracker with ShakeMixin { start }
-
-  trait TerminationMixin extends ShakeMixin with terminator.TerminationMixin
 
   import java.io.File
 
@@ -28,6 +24,10 @@ class ShakeFactory(
   def newDirDataWriter(dir: File) = new DirectoryDataWriter(dir) with ShakeMixin { start }
   def newJarDataWriter(jar: File) = new JarDataWriter(jar) with ShakeMixin { start }
   def newDecoder(classData: Array[Byte]) = new ClassDecoder(classData) with ShakeMixin { start }
+
+  val terminator = new Terminator with ShakeMixin { start }
+
+  trait TerminationMixin extends ShakeMixin with terminator.TerminationMixin
 
   def trackedActor(body: => Unit) = new Actor with TerminationMixin {
     def act() = body
