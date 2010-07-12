@@ -18,7 +18,9 @@ object QuickShake {
     options: Options,
     loggerFactory: (LogLevel.LogLevel) => Logger
   ) {
-    val logger = loggerFactory(options.logLevel)
+    val shakeFactory = new ShakeFactory(options, loggerFactory)
+
+    val logger = shakeFactory.logger
 
     logger.info("inputs:")
     options.inputs foreach {dir => logger.info(dir.toString)}
@@ -26,32 +28,28 @@ object QuickShake {
     logger.info("keepNamespaces:")
     options.keepNamespaces foreach {ns => logger.info(ns)}
 
-    val actorFactory = new ActorFactory(logger)
+    val terminator = shakeFactory.terminator
 
-    val terminator = actorFactory.terminator
-
-    type ShakeMixin = actorFactory.ShakeMixin
+    type ShakeMixin = shakeFactory.ShakeMixin
 
     val dataReaders = options.inputs map {
       (in: File) =>
-	if (in.isDirectory) actorFactory.newDirDataReader(in)
-	else if (in.isFile) actorFactory.newJarDataReader(in)
+	if (in.isDirectory) shakeFactory.newDirDataReader(in)
+	else if (in.isFile) shakeFactory.newJarDataReader(in)
 	else error("Input " + in.getPath + " not found")
     }
     val dataWriter = {
       val isJar = options.output.getAbsolutePath.endsWith(".jar")
-      if (isJar) actorFactory.newJarDataWriter(options.output)
-      else actorFactory.newDirDataWriter(options.output)
+      if (isJar) shakeFactory.newJarDataWriter(options.output)
+      else shakeFactory.newDirDataWriter(options.output)
     }
-    val decider = actorFactory.newKeepClassDecider(options.keepNamespaces)
-    val statsTracker = actorFactory.newStatsTracker()
+    val decider = shakeFactory.decider
+    val statsTracker = shakeFactory.statsTracker
 
-    type TerminationMixin = actorFactory.TerminationMixin
-
-    import actorFactory.trackedActor
+    import shakeFactory.trackedActor
 
     def decode(classData: Array[Byte]) {
-      val decoder = actorFactory.newDecoder(classData)
+      val decoder = shakeFactory.newDecoder(classData)
 
       trackedActor {
         decoder ! ClassDecoder.GetName
@@ -72,9 +70,8 @@ object QuickShake {
 		    case ClassDecoder.Method(methodName, classDeps, methodDeps) =>
 		      methods += 1
 		      val methodAccumulator = self
-		      actorFactory.newMethodCoordinator (
+		      shakeFactory.newMethodCoordinator (
 			(className, methodName, classDeps, methodDeps),
-			decider,
 			methodAccumulator
 		      )
 		    case ClassDecoder.End =>

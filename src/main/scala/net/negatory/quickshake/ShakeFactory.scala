@@ -1,9 +1,14 @@
 package net.negatory.quickshake
 
-class ActorFactory(val logger: Logger) {
+class ShakeFactory(
+  options: Options,
+  loggerFactory: (LogLevel.LogLevel) => Logger
+) {
 
   import actors.Actor
   import actors.Actor._
+
+  val logger = loggerFactory(options.logLevel)
 
   val exitHandler = new ExitHandler with logger.LoggerMixin
   exitHandler.start()
@@ -14,6 +19,12 @@ class ActorFactory(val logger: Logger) {
   terminator.start()
 
   trait TerminationMixin extends ShakeMixin with terminator.TerminationMixin
+
+  val decider = new KeepClassDecider(options.keepNamespaces) with ShakeMixin
+  decider.start()
+
+  val statsTracker = new StatsTracker with ShakeMixin
+  statsTracker.start()
 
   import java.io.File
 
@@ -29,14 +40,6 @@ class ActorFactory(val logger: Logger) {
   def newJarDataWriter(jar: File) = {
     new JarDataWriter(jar) with ShakeMixin
   }.start()
-  def newKeepClassDecider(keptNamespaces: List[String]) = {
-    val c = new KeepClassDecider(keptNamespaces) with ShakeMixin
-    c.start()
-    c
-  }
-  def newStatsTracker() = {
-    new StatsTracker with ShakeMixin
-  }.start()
 
   def trackedActor(body: => Unit) = new Actor with TerminationMixin {
     def act() = body
@@ -49,7 +52,6 @@ class ActorFactory(val logger: Logger) {
 
   def newMethodCoordinator(
     methodProps: (ClassName, String, List[ClassName], List[String]),
-    decider: KeepClassDecider,
     methodAccumulator: Actor
   ) = trackedActor {
 
