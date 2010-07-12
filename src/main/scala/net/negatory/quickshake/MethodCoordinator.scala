@@ -19,6 +19,7 @@ object MethodCoordinator {
 
 class MethodCoordinator(
   props: MethodProps,
+  // TODO: Sending the results to the accumulator one at a time is inefficient
   methodAccumulator: Actor,
   decider: KeepClassDecider
 ) extends Actor with Logging {
