@@ -19,7 +19,6 @@ object QuickShake {
     loggerFactory: (LogLevel.LogLevel) => Logger
   ) {
     val logger = loggerFactory(options.logLevel)
-    val shaker = new Shaker(options, logger)
 
     logger.info("inputs:")
     options.inputs foreach {dir => logger.info(dir.toString)}
@@ -27,51 +26,7 @@ object QuickShake {
     logger.info("keepNamespaces:")
     options.keepNamespaces foreach {ns => logger.info(ns)}
 
-    val terminator = shaker.terminator
-    val dataReaders = shaker.dataReaders
-    val dataWriter = shaker.dataWriter
-    val decider = shaker.decider
-    val statsTracker = shaker.statsTracker
-
-    // Create a client for each reader that processes the input classes.
-    dataReaders map { 
-      
-      (reader) =>
-
-	import shaker.trackedActor
-
-	trackedActor {
-          reader ! ClassDataReader.Search
-
-          loop {
-            react {
-              case ClassDataReader.Visit(classData) =>
-		shaker.newClassCoordinator(classData)
-              case ClassDataReader.End =>
-		exit()
-            }
-          }
-	}
-    }
-
-    // TODO: Need to find a better way to estimate when we need
-    // to begin probing for termination
-    var continue = true
-    while (continue) {
-      terminator !? Terminator.AwaitAllPassive match {
-	case Terminator.AllPassive =>
-	  logger.debug("Draining waiters")
-	  decider ! KeepClassDecider.DrainWaiters
-	case Terminator.AllDone => continue = false
-      }
-    }
-    logger.debug("Cleaning up")
-    statsTracker ! StatsTracker.LogStats
-    statsTracker ! StatsTracker.End
-    decider ! KeepClassDecider.End
-    dataWriter !? ClassDataWriter.End
-    Runtime.getRuntime.exit(0)
-    terminator ! Terminator.End
+    new Shaker(options, logger).run()
   }
 
 }

@@ -113,6 +113,46 @@ class Shaker(
     }
   }
 
+  def run() {
 
+    // Create a client for each reader that processes the input classes.
+    dataReaders map { 
+      
+      (reader) =>
+
+	trackedActor {
+          reader ! ClassDataReader.Search
+
+          loop {
+            react {
+              case ClassDataReader.Visit(classData) =>
+		newClassCoordinator(classData)
+              case ClassDataReader.End =>
+		exit()
+            }
+          }
+	}
+    }
+
+    var continue = true
+    while (continue) {
+      terminator !? Terminator.AwaitAllPassive match {
+	case Terminator.AllPassive =>
+	  logger.debug("Draining waiters")
+	  decider ! KeepClassDecider.DrainWaiters
+	case Terminator.AllDone => continue = false
+      }
+    }
+
+    statsTracker ! StatsTracker.LogStats
+
+    logger.debug("Cleaning up")
+    statsTracker ! StatsTracker.End
+    decider ! KeepClassDecider.End
+    dataWriter !? ClassDataWriter.End
+    // TODO: Need to stop gracefully, but fast
+    Runtime.getRuntime.exit(0)
+    terminator ! Terminator.End
+  }
 }
 
