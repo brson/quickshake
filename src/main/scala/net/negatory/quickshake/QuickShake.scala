@@ -21,8 +21,6 @@ object QuickShake {
     val logger = loggerFactory(options.logLevel)
     val shaker = new Shaker(options, logger)
 
-    val shakeFactory = shaker.shakeFactory
-
     logger.info("inputs:")
     options.inputs foreach {dir => logger.info(dir.toString)}
     logger.info("output: " + options.output)
@@ -40,7 +38,7 @@ object QuickShake {
       
       (reader) =>
 
-	import shakeFactory.trackedActor
+	import shaker.trackedActor
 
 	trackedActor {
           reader ! ClassDataReader.Search
@@ -48,10 +46,7 @@ object QuickShake {
           loop {
             react {
               case ClassDataReader.Visit(classData) =>
-		val decoder = shakeFactory.newDecoder(classData)
-		shakeFactory.newClassCoordinator(
-		  classData, decoder, decider, dataWriter, statsTracker
-		)
+		shaker.newClassCoordinator(classData)
               case ClassDataReader.End =>
 		exit()
             }
