@@ -6,16 +6,14 @@ class ShakeFactory(val logger: Logger) {
 
   import actors.Actor
   import actors.Actor._
+  import java.io.File
 
   val exitHandler = new ExitHandler with logger.LoggerMixin { start }
 
   trait ShakeMixin extends logger.LoggerMixin with exitHandler.TrapMixin
 
   def newDecider(keepNamespaces: List[String]) = new KeepClassDecider(keepNamespaces) with ShakeMixin { start }
-  val statsTracker = new StatsTracker with ShakeMixin { start }
-
-  import java.io.File
-
+  def newStatsTracker() = new StatsTracker with ShakeMixin { start }
   def newDirDataReader(dir: File) = new DirectoryDataReader(dir) with ShakeMixin { start }
   def newJarDataReader(jar: File) = new JarDataReader(jar) with ShakeMixin { start }
   def newDirDataWriter(dir: File) = new DirectoryDataWriter(dir) with ShakeMixin { start }
@@ -35,7 +33,8 @@ class ShakeFactory(val logger: Logger) {
     classData: Array[Byte],
     decoder: ClassDecoder,
     decider: KeepClassDecider,
-    dataWriter: ClassDataWriter
+    dataWriter: ClassDataWriter,
+    statsTracker: StatsTracker
   ) = trackedActor {
     decoder ! ClassDecoder.GetName
 

@@ -44,7 +44,7 @@ object QuickShake {
       else shakeFactory.newDirDataWriter(options.output)
     }
     val decider = shakeFactory.newDecider(options.keepNamespaces)
-    val statsTracker = shakeFactory.statsTracker
+    val statsTracker = shakeFactory.newStatsTracker()
 
     // Create a client for each reader that processes the input classes.
     dataReaders map { 
@@ -61,7 +61,7 @@ object QuickShake {
               case ClassDataReader.Visit(classData) =>
 		val decoder = shakeFactory.newDecoder(classData)
 		shakeFactory.newClassCoordinator(
-		  classData, decoder, decider, dataWriter
+		  classData, decoder, decider, dataWriter, statsTracker
 		)
               case ClassDataReader.End =>
 		exit()
