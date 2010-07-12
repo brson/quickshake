@@ -3,13 +3,6 @@ package net.negatory.quickshake
 import actors.Actor
 import actors.Actor._
 
-case class MethodProps(
-  className: ClassName,
-  methodName: String,
-  classDeps: List[ClassName],
-  methodDeps: List[String]
-)
-
 object MethodCoordinator {
   // These will be used to track the set of methods
   // on a class that need to be retained
@@ -27,7 +20,7 @@ class MethodCoordinator(
   def act() {
     val MethodProps(className, methodName, classDeps, methodDeps) = props
     
-    decider ! KeepClassDecider.DecideOnMethod(className, methodName)
+    decider ! KeepClassDecider.DecideOnMethod(props)
     react {
       case KeepClassDecider.Kept =>
 	methodAccumulator ! MethodCoordinator.KeepMethod(methodName)

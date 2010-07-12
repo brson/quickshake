@@ -7,9 +7,9 @@ object KeepClassDecider {
   case class KeepClass(className: ClassName)
   case class KeepMethod(methodName: String)
   case class DecideOnClass(className: ClassName)
-  case class DecideOnMethod(className: ClassName, methodName: String)
   case object Kept
   case object Discarded
+  case class DecideOnMethod(props: MethodProps)
   case object DrainWaiters
   case object End
 }
@@ -30,7 +30,7 @@ class KeepClassDecider(
 	case KeepClass(className) => keepClass(className)
 	case KeepMethod(methodName) => keepMethod(methodName)
 	case DecideOnClass(className) => decideOnClass(className)
-	case DecideOnMethod(className, methodName) => decideOnMethod(className, methodName)
+	case DecideOnMethod(props) => decideOnMethod(props)
 	case DrainWaiters => drainRequesters()
 	case End => 
 	  debug("Decider exiting")
@@ -93,10 +93,9 @@ class KeepClassDecider(
     }
   }
 
-  private def decideOnMethod(
-    className: ClassName,
-    methodName: String
-  ) {
+  private def decideOnMethod(props: MethodProps) {
+    val MethodProps(className, methodName, _, _) = props
+
     debug("Deciding whether to keep method " + methodName)
     if (isInKeptNs(className)) {
       sender ! Kept

@@ -86,3 +86,11 @@ class Descriptor(val raw: String) {
   }
 
 }
+
+case class MethodProps(
+  className: ClassName,
+  methodName: String,
+  classDeps: List[ClassName],
+  methodDeps: List[String]
+)
+
