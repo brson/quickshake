@@ -22,9 +22,3 @@ class ShakeFactory(val logger: Logger) {
   def newTerminator() = new Terminator with ShakeMixin { start }
 }
 
-object MethodAccumulator {
-  // These will be used to track the set of methods
-  // on a class that need to be retained
-  case class KeepMethod(methodName: String)
-  case object DiscardMethod
-}

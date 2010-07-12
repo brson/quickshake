@@ -55,7 +55,7 @@ class Shaker(
 		  methods += 1
 		  val methodAccumulator = self
 		  newMethodCoordinator (
-		    (className, methodName, classDeps, methodDeps),
+		    MethodProps(className, methodName, classDeps, methodDeps),
 		    methodAccumulator
 		  )
 		case ClassDecoder.End =>
@@ -66,9 +66,9 @@ class Shaker(
 		  loopWhile(methodsDecided < methods) {
 		    react {
 		      val f: PartialFunction[Any, Unit] = {
-			case MethodAccumulator.KeepMethod(methodName) =>
+			case MethodCoordinator.KeepMethod(methodName) =>
 			  methodsKept += methodName
-			case MethodAccumulator.DiscardMethod => ()
+			case MethodCoordinator.DiscardMethod => ()
 		      }
 
 		      f andThen { _ => methodsDecided += 1 }
@@ -90,27 +90,14 @@ class Shaker(
   }
 
   def newMethodCoordinator(
-    methodProps: (ClassName, String, List[ClassName], List[String]),
+    props: MethodProps,
     methodAccumulator: Actor
-  ) = trackedActor {
-
-    val (className, methodName, classDeps, methodDeps) = methodProps
-    
-    decider ! KeepClassDecider.DecideOnMethod(className, methodName)
-    react {
-      case KeepClassDecider.Kept =>
-	methodAccumulator ! MethodAccumulator.KeepMethod(methodName)
-	classDeps foreach {
-	  decider ! KeepClassDecider.KeepClass(_)
-	}
-	methodDeps foreach {
-	  decider ! KeepClassDecider.KeepMethod(_)
-	}
-	exit()
-      case KeepClassDecider.Discarded =>
-	methodAccumulator ! MethodAccumulator.DiscardMethod
-	exit()
-    }
+  ) = new MethodCoordinator(
+    props,
+    methodAccumulator,
+    decider
+  ) with TerminationMixin {
+    start
   }
 
   def run() {
