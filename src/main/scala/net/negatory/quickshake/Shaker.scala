@@ -33,60 +33,17 @@ class Shaker(
     start()
   }
 
-  def newClassCoordinator(classData: Array[Byte]) = trackedActor {
-    val decoder = shakeFactory.newDecoder(classData)
-
-    decoder ! ClassDecoder.GetName
-
-    react {
-      case ClassDecoder.Name(className) =>
-	logger.debug("Decoded name of class " + className)
-	decider ! KeepClassDecider.DecideOnClass(className)
-	var methods = 0
-	react {
-	  case KeepClassDecider.Kept =>
-	    logger.debug("Keeping " + className)
-	    decoder ! ClassDecoder.FindDependencies
-	    loop {
-	      react {
-		case ClassDecoder.ClassDependency(depName) =>
-		  decider ! KeepClassDecider.KeepClass(depName)
-		case ClassDecoder.Method(methodName, classDeps, methodDeps) =>
-		  methods += 1
-		  val methodAccumulator = self
-		  newMethodCoordinator (
-		    MethodProps(className, methodName, classDeps, methodDeps),
-		    methodAccumulator
-		  )
-		case ClassDecoder.End =>
-		  // Get the list of methods to keep
-		  import collection.mutable.HashSet
-		  var methodsDecided = 0
-		  val methodsKept = new HashSet[String]
-		  loopWhile(methodsDecided < methods) {
-		    react {
-		      val f: PartialFunction[Any, Unit] = {
-			case MethodCoordinator.KeepMethod(methodName) =>
-			  methodsKept += methodName
-			case MethodCoordinator.DiscardMethod => ()
-		      }
-
-		      f andThen { _ => methodsDecided += 1 }
-		    }
-		  } andThen {
-		    dataWriter ! ClassDataWriter.AddClass(className, classData)
-		    statsTracker ! StatsTracker.KeptClass(methodsKept.size)
-		    exit()
-		  }
-	      }
-	    }
-	  case KeepClassDecider.Discarded => 
-	    logger.debug("Discarding " + className)
-	    decoder ! ClassDecoder.Discard
-	    statsTracker ! StatsTracker.DiscardedClass
-	    exit()
-	}
-    }
+  def newClassCoordinator(
+    classData: Array[Byte]
+  ) = new ClassCoordinator(
+    classData,
+    shakeFactory.newDecoder(classData),
+    decider,
+    dataWriter,
+    statsTracker,
+    newMethodCoordinator
+  ) with TerminationMixin {
+    start
   }
 
   def newMethodCoordinator(
