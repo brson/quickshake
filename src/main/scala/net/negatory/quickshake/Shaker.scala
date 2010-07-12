@@ -40,19 +40,7 @@ class Shaker(
     shakeFactory.newDecoder(classData),
     decider,
     dataWriter,
-    statsTracker,
-    newMethodCoordinator
-  ) with TerminationMixin {
-    start
-  }
-
-  def newMethodCoordinator(
-    props: MethodProps,
-    methodAccumulator: Actor
-  ) = new MethodCoordinator(
-    props,
-    methodAccumulator,
-    decider
+    statsTracker
   ) with TerminationMixin {
     start
   }
@@ -77,6 +65,9 @@ class Shaker(
           }
 	}
     }
+
+    println("presskey")
+    readLine
 
     var continue = true
     while (continue) {

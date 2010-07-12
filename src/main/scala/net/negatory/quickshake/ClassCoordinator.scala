@@ -7,8 +7,7 @@ class ClassCoordinator(
   decoder: ClassDecoder,
   decider: KeepClassDecider,
   dataWriter: ClassDataWriter,
-  statsTracker: StatsTracker,
-  newMethodCoordinator: (MethodProps, Actor) => MethodCoordinator
+  statsTracker: StatsTracker
 ) extends Actor with Logging {
 
   import Actor._
@@ -20,22 +19,19 @@ class ClassCoordinator(
       case ClassDecoder.Name(className) =>
 	debug("Decoded name of class " + className)
 	decider ! KeepClassDecider.DecideOnClass(className)
-	var methods = 0
 	react {
 	  case KeepClassDecider.Kept =>
 	    debug("Keeping " + className)
 	    decoder ! ClassDecoder.FindDependencies
+	    var methods = 0
 	    loop {
 	      react {
 		case ClassDecoder.ClassDependency(depName) =>
 		  decider ! KeepClassDecider.KeepClass(depName)
 		case ClassDecoder.Method(methodName, classDeps, methodDeps) =>
 		  methods += 1
-		  val methodAccumulator = self
-		  newMethodCoordinator (
-		    MethodProps(className, methodName, classDeps, methodDeps),
-		    methodAccumulator
-		  )
+		  val props = MethodProps(className, methodName, classDeps, methodDeps)
+		  decider ! KeepClassDecider.DecideOnMethod(props)
 		case ClassDecoder.End =>
 		  // Get the list of methods to keep
 		  import collection.mutable.HashSet
@@ -44,16 +40,23 @@ class ClassCoordinator(
 		  loopWhile(methodsDecided < methods) {
 		    react {
 		      val f: PartialFunction[Any, Unit] = {
-			case MethodCoordinator.KeepMethod(methodName) =>
+			case KeepClassDecider.KeptMethod(props) =>
+			  val MethodProps(_, methodName, classDeps, methodDeps) = props
 			  methodsKept += methodName
-			case MethodCoordinator.DiscardMethod => ()
+			  classDeps foreach {
+			    decider ! KeepClassDecider.KeepClass(_)
+			  }
+			  methodDeps foreach {
+			    decider ! KeepClassDecider.KeepMethod(_)
+			  }
+			case KeepClassDecider.DiscardedMethod(_) => ()
 		      }
 
 		      f andThen { _ => methodsDecided += 1 }
 		    }
 		  } andThen {
-		    dataWriter ! ClassDataWriter.AddClass(className, classData)
 		    statsTracker ! StatsTracker.KeptClass(methodsKept.size)
+		    dataWriter ! ClassDataWriter.AddClass(className, classData)
 		    exit()
 		  }
 	      }
