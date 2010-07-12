@@ -19,8 +19,7 @@ class ShakeFactory(val logger: Logger) {
   def newDirDataWriter(dir: File) = new DirectoryDataWriter(dir) with ShakeMixin { start }
   def newJarDataWriter(jar: File) = new JarDataWriter(jar) with ShakeMixin { start }
   def newDecoder(classData: Array[Byte]) = new ClassDecoder(classData) with ShakeMixin { start }
-
-  val terminator = new Terminator with ShakeMixin { start }
+  def newTerminator() = new Terminator with ShakeMixin { start }
 }
 
 object MethodAccumulator {

@@ -25,7 +25,7 @@ class Shaker(
       else shakeFactory.newDirDataWriter(options.output)
   }
 
-  val terminator = shakeFactory.terminator
+  val terminator = shakeFactory.newTerminator()
   trait TerminationMixin extends shakeFactory.ShakeMixin with terminator.TerminationMixin
 
   def trackedActor(body: => Unit) = new Actor with TerminationMixin {
