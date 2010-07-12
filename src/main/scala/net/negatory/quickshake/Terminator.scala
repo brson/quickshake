@@ -42,7 +42,7 @@ object Terminator {
 class Terminator extends Actor with Logging {
 
   import Terminator._
-
+  override def minLogLevel = LogLevel.Debug
   trait TerminationMixin extends Actor with Logging {
 
     private var procState: ProcessState = Active
@@ -116,19 +116,22 @@ class Terminator extends Actor with Logging {
 
     loop {
       react {
-	case Register(actor) => tracked = actor :: tracked
+	case Register(actor) =>
+	  tracked = actor :: tracked
+	  debug("Registered actor " + actor)
 	case AwaitAllPassive =>
 	  val currentTracked = tracked
 	  tracked = Nil
 	  awaitAllPassive(sender, currentTracked)
-	case KeepTracking(actors) => tracked = tracked ::: actors
+	case KeepTracking(actors) =>
+	  tracked = tracked ::: actors
+	  debug("Continuing to track " + actors.size + " actors")
 	case End => exit()
       }
     }
   }
 
   def awaitAllPassive(requester: OutputChannel[Any], tracked: List[Actor]): Unit = actor {
-    debug("Awaiting termination")
     initiateControlWave(self, tracked)
     self.react {
       case WaveResult(stillTracking, Active) =>
@@ -141,13 +144,16 @@ class Terminator extends Actor with Logging {
 	Terminator.this ! KeepTracking(stillTracking)
 	debug("All actors passive")
 	requester ! AllPassive
-      case WaveResult(_, Done) =>
+      case WaveResult(stillTracking, Done) =>
+	assert(stillTracking == Nil)
 	debug("All actors done")
 	requester ! AllDone
     }
   }
 
   def initiateControlWave(requester: OutputChannel[Any], tracked: List[Actor]) = actor {
+
+    debug("Initiating control wave against " + tracked.size + " actors")
 
     tracked.head ! CollectAndResetStickyState (
       tracked.tail,

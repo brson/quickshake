@@ -66,19 +66,19 @@ class Shaker(
 	}
     }
 
-    println("presskey")
-    readLine
-
     var continue = true
+    var count = 0
     while (continue) {
       terminator !? Terminator.AwaitAllPassive match {
 	case Terminator.AllPassive =>
 	  logger.debug("Draining waiters")
-	  decider ! KeepClassDecider.DrainWaiters
+	  //readLine
+	  if (count > 0) decider ! KeepClassDecider.DrainWaiters
+	  count += 1
 	case Terminator.AllDone => continue = false
       }
     }
-
+  
     statsTracker ! StatsTracker.LogStats
 
     logger.debug("Cleaning up")
