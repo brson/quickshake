@@ -11,7 +11,6 @@ class Shaker(
 ) {
 
   val shakeFactory = new ShakeFactory(logger)
-  //val decider = shakeFactory.newDecider(options.keepNamespaces)
   val statsTracker = shakeFactory.newStatsTracker()
   val dataReaders = options.inputs map {
     (in: File) =>
@@ -74,12 +73,12 @@ class Shaker(
     while (continue) {
       terminator !? Terminator.AwaitAllPassive match {
 	case Terminator.AllPassive(remaining) =>
-	  println(remaining)
 	  if (remaining > 1) {
 	    logger.debug("Draining waiters")
-	    //readLine
 	    decider ! KeepClassDecider.DrainWaiters
 	  } else {
+	    // This little guy is the only one left alive
+	    // but he still can't escape the Terminator
 	    decider ! KeepClassDecider.End
 	  }
 	case Terminator.AllDone => continue = false

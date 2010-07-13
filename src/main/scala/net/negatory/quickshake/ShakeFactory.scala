@@ -12,7 +12,6 @@ class ShakeFactory(val logger: Logger) {
 
   trait ShakeMixin extends logger.LoggerMixin with exitHandler.TrapMixin
 
-  def newDecider(keepNamespaces: List[String]) = new KeepClassDecider(keepNamespaces) with ShakeMixin { start }
   def newStatsTracker() = new StatsTracker with ShakeMixin { start }
   def newDirDataReader(dir: File) = new DirectoryDataReader(dir) with ShakeMixin { start }
   def newJarDataReader(jar: File) = new JarDataReader(jar) with ShakeMixin { start }
