@@ -24,7 +24,7 @@ object Terminator {
 
   case class Register(actor: Actor)
   case object AwaitAllPassive
-  case object AllPassive
+  case class AllPassive(remaining: Int)
   case object AllDone
 
   private case class CollectAndResetStickyState(
@@ -145,7 +145,7 @@ class Terminator extends Actor with Logging {
       case WaveResult(stillTracking, Passive) =>
 	Terminator.this ! KeepTracking(stillTracking)
 	debug("All actors passive")
-	requester ! AllPassive
+	requester ! AllPassive(stillTracking.size)
       case WaveResult(stillTracking, Done) =>
 	assert(stillTracking == Nil)
 	debug("All actors done")

@@ -11,7 +11,7 @@ class Shaker(
 ) {
 
   val shakeFactory = new ShakeFactory(logger)
-  val decider = shakeFactory.newDecider(options.keepNamespaces)
+  //val decider = shakeFactory.newDecider(options.keepNamespaces)
   val statsTracker = shakeFactory.newStatsTracker()
   val dataReaders = options.inputs map {
     (in: File) =>
@@ -27,6 +27,10 @@ class Shaker(
 
   val terminator = shakeFactory.newTerminator()
   trait TerminationMixin extends shakeFactory.ShakeMixin with terminator.TerminationMixin
+
+  val decider = new KeepClassDecider(options.keepNamespaces) with TerminationMixin {
+    start()
+  }
 
   def trackedActor(body: => Unit) = new Actor with TerminationMixin {
     def act() = body
@@ -67,14 +71,17 @@ class Shaker(
     }
 
     var continue = true
-    var count = 0
     while (continue) {
       terminator !? Terminator.AwaitAllPassive match {
-	case Terminator.AllPassive =>
-	  logger.debug("Draining waiters")
-	  //readLine
-	  if (count > 0) decider ! KeepClassDecider.DrainWaiters
-	  count += 1
+	case Terminator.AllPassive(remaining) =>
+	  println(remaining)
+	  if (remaining > 1) {
+	    logger.debug("Draining waiters")
+	    //readLine
+	    decider ! KeepClassDecider.DrainWaiters
+	  } else {
+	    decider ! KeepClassDecider.End
+	  }
 	case Terminator.AllDone => continue = false
       }
     }
@@ -83,7 +90,6 @@ class Shaker(
 
     logger.debug("Cleaning up")
     statsTracker ! StatsTracker.End
-    decider ! KeepClassDecider.End
     dataWriter !? ClassDataWriter.End
     // TODO: Need to stop gracefully, but fast
     Runtime.getRuntime.exit(0)
