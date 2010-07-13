@@ -103,7 +103,7 @@ class Terminator extends Actor with Logging {
 	  } else {
 	    requester ! WaveResult(keep, newState)
 	  }
-	  //super.exit()
+	  super.exit()
       }
 
       super.react(f)
@@ -113,19 +113,21 @@ class Terminator extends Actor with Logging {
 
   def act() = {
     var tracked: List[Actor] = Nil
+    var total = 0
 
     loop {
       react {
 	case Register(actor) =>
 	  tracked = actor :: tracked
-	  debug("Registered actor " + actor)
+	  total += 1
+	  debug("Registered actor " + total + " " + actor)
 	case AwaitAllPassive =>
 	  val currentTracked = tracked
 	  tracked = Nil
 	  awaitAllPassive(sender, currentTracked)
 	case KeepTracking(actors) =>
 	  tracked = tracked ::: actors
-	  debug("Continuing to track " + actors.size + " actors")
+	  debug("Continuing to track " + tracked.size + " actors of " + total)
 	case End => exit()
       }
     }
