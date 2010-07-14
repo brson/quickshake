@@ -41,6 +41,7 @@ class ClassCoordinator(
 		    react {
 		      val f: PartialFunction[Any, Unit] = {
 			case KeepClassDecider.KeptMethod(props) =>
+			  statsTracker ! StatsTracker.KeptMethod
 			  val MethodProps(_, methodName, classDeps, methodDeps) = props
 			  methodsKept += methodName
 			  classDeps foreach {
@@ -49,13 +50,14 @@ class ClassCoordinator(
 			  methodDeps foreach {
 			    decider ! KeepClassDecider.KeepMethod(_)
 			  }
-			case KeepClassDecider.DiscardedMethod(_) => ()
+			case KeepClassDecider.DiscardedMethod(_) =>
+			  statsTracker ! StatsTracker.DiscardedMethod
 		      }
 
 		      f andThen { _ => methodsDecided += 1 }
 		    }
 		  } andThen {
-		    statsTracker ! StatsTracker.KeptClass(methodsKept.size)
+		    statsTracker ! StatsTracker.KeptClass
 		    dataWriter ! ClassDataWriter.AddClass(className, classData, methodsKept)
 		    exit()
 		  }
