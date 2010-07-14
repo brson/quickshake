@@ -56,7 +56,7 @@ class ClassCoordinator(
 		    }
 		  } andThen {
 		    statsTracker ! StatsTracker.KeptClass(methodsKept.size)
-		    dataWriter ! ClassDataWriter.AddClass(className, classData)
+		    dataWriter ! ClassDataWriter.AddClass(className, classData, methodsKept)
 		    exit()
 		  }
 	      }

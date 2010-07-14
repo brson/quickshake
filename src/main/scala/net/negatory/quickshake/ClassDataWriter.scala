@@ -3,12 +3,15 @@ package net.negatory.quickshake
 import actors.Actor
 import actors.Actor._
 import java.io.File
+import collection.mutable.HashSet
+import ClassEncoder.stripClass
 
 object ClassDataWriter {
   case class AddClass(
     className: ClassName,
-    classData: Array[Byte]
-    )
+    classData: Array[Byte],
+    methodsKept: HashSet[String]
+  )
   case object End
 }
 
@@ -20,8 +23,8 @@ class DirectoryDataWriter(outputDir: File) extends ClassDataWriter with Logging 
     import ClassDataWriter._
     loop {
       react {
-	case AddClass(className, classData) =>
-	  addClass(className, classData)
+	case AddClass(className, classData, keptMethods) =>
+	  addClass(className, classData, keptMethods)
 	case End => reply('done); exit()
       }
     }
@@ -29,7 +32,8 @@ class DirectoryDataWriter(outputDir: File) extends ClassDataWriter with Logging 
 
   private def addClass(
     className: ClassName,
-    classData: Array[Byte]
+    classData: Array[Byte],
+    keptMethods: HashSet[String]
   ) {
     import org.apache.commons.io.FileUtils
     import FileUtils.{forceMkdir, writeByteArrayToFile}
@@ -43,7 +47,8 @@ class DirectoryDataWriter(outputDir: File) extends ClassDataWriter with Logging 
 
     forceMkdir(dirPath)
 
-    writeByteArrayToFile(filePath, classData)
+    val strippedClass = stripClass(classData, keptMethods)
+    writeByteArrayToFile(filePath, strippedClass)
   }
 }
 
@@ -63,10 +68,11 @@ class JarDataWriter(jar: File) extends ClassDataWriter with Logging {
 
     loop {
       react {
-	case AddClass(className, classData) =>
+	case AddClass(className, classData, keptMethods) =>
 	  val entry = new ZipEntry(className.filePath)
 	  jarOutput.putNextEntry(entry)
-	  jarOutput.write(classData)
+	  val strippedClass = stripClass(classData, keptMethods)
+	  jarOutput.write(strippedClass)
 	case End =>
 	  reply('done)
 	  // TODO: This isn't enough to guarantee that jarOutput gets closed
