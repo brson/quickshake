@@ -48,8 +48,9 @@ class ClassCoordinator(
 			  classDeps foreach {
 			    decider ! KeepClassDecider.KeepClass(_)
 			  }
-			  methodDeps foreach {
-			    decider ! KeepClassDecider.KeepMethod(_)
+			  methodDeps foreach { p =>
+			    val (cn, mn) = p
+			    decider ! KeepClassDecider.KeepMethod(cn, mn)
 			  }
 			case KeepClassDecider.DiscardedMethod(props) =>
 			  val MethodProps(_, methodName, _, _) = props

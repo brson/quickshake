@@ -91,6 +91,6 @@ case class MethodProps(
   className: ClassName,
   methodName: String,
   classDeps: List[ClassName],
-  methodDeps: List[String]
+  methodDeps: List[(ClassName, String)]
 )
 

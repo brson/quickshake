@@ -8,7 +8,11 @@ object ClassDecoder {
   case class Name(className: ClassName)
   case object Discard
   case object FindDependencies
-  case class Method(methodName: String, classDeps: List[ClassName], methodDeps: List[String])
+  case class Method(
+    methodName: String,
+    classDeps: List[ClassName],
+    methodDeps: List[(ClassName, String)]
+  )
   case class ClassDependency(className: ClassName)
   case object End
 }
@@ -137,7 +141,7 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
 	val methodName = name
 
 	var classDeps: List[ClassName] = Nil
-	var methodDeps: List[String] = Nil
+	var methodDeps: List[(ClassName, String)] = Nil
 
 	def reportClassDependency(className: ClassName) {
 	  classDeps = className :: classDeps
@@ -147,8 +151,8 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
 	  classDeps = desc.classNames ::: classDeps
 	}
 
-	def reportMethodDependency(name: String) {
-	  methodDeps = name :: methodDeps
+	def reportMethodDependency(className: ClassName, name: String) {
+	  methodDeps = (className, name) :: methodDeps
 	}
 
 	def reportNameOrDescriptor(s: String) = if (ClassName.rawIsNotADescriptor(s)) {
@@ -194,7 +198,22 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
 	      reportNameOrDescriptor(owner)
 	    }
 	    reportClassDependencies(new Descriptor(desc))
-	    reportMethodDependency(name)
+
+	    val cn = if (ClassName.rawIsNotADescriptor(owner)) {
+	      Some(new ClassName(owner))
+	    } else {
+	      val desc = new Descriptor(owner)
+	      if (!desc.classNames.isEmpty) Some(desc.classNames.head)
+	      else {
+		// Operations on arrays of primitives, possibly
+		// other methods. Shouldn't matter if they're ignored.
+		None
+	      }
+	    }
+	    cn match {
+	      case Some(cn) => reportMethodDependency(cn, name)
+	      case None => ()
+	    }
 	  }
 
 	  override def visitMultiANewArrayInsn(desc: String, dims: Int) {

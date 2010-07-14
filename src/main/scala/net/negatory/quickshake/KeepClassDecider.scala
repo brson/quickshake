@@ -5,7 +5,7 @@ import actors.Actor._
 
 object KeepClassDecider {
   case class KeepClass(className: ClassName)
-  case class KeepMethod(methodName: String)
+  case class KeepMethod(className: ClassName, methodName: String)
   case class DecideOnClass(className: ClassName)
   case object Kept
   case object Discarded
@@ -30,7 +30,7 @@ class KeepClassDecider(
     loop {
       react {
 	case KeepClass(className) => keepClass(className)
-	case KeepMethod(methodName) => keepMethod(methodName)
+	case KeepMethod(className, methodName) => keepMethod(className, methodName)
 	case DecideOnClass(className) => decideOnClass(className)
 	case DecideOnMethod(props) => decideOnMethod(props)
 	case DrainWaiters => drainRequesters()
@@ -61,7 +61,7 @@ class KeepClassDecider(
     }
   }
 
-  private def keepMethod(methodName: String) {
+  private def keepMethod(className: ClassName, methodName: String) {
 
     methodSet += methodName
 
