@@ -21,7 +21,7 @@ class ClassCoordinator(
 	decider ! KeepClassDecider.DecideOnClass(className)
 	react {
 	  case KeepClassDecider.Kept =>
-	    debug("Keeping " + className)
+	    debug("Keeping class " + className)
 	    decoder ! ClassDecoder.FindDependencies
 	    var methods = 0
 	    loop {
@@ -41,8 +41,9 @@ class ClassCoordinator(
 		    react {
 		      val f: PartialFunction[Any, Unit] = {
 			case KeepClassDecider.KeptMethod(props) =>
-			  statsTracker ! StatsTracker.KeptMethod
 			  val MethodProps(_, methodName, classDeps, methodDeps) = props
+			  debug("Keeping method " + methodName)
+			  statsTracker ! StatsTracker.KeptMethod
 			  methodsKept += methodName
 			  classDeps foreach {
 			    decider ! KeepClassDecider.KeepClass(_)
@@ -50,7 +51,9 @@ class ClassCoordinator(
 			  methodDeps foreach {
 			    decider ! KeepClassDecider.KeepMethod(_)
 			  }
-			case KeepClassDecider.DiscardedMethod(_) =>
+			case KeepClassDecider.DiscardedMethod(props) =>
+			  val MethodProps(_, methodName, _, _) = props
+			  debug("Discarding method " + methodName)
 			  statsTracker ! StatsTracker.DiscardedMethod
 		      }
 
@@ -64,7 +67,7 @@ class ClassCoordinator(
 	      }
 	    }
 	  case KeepClassDecider.Discarded => 
-	    debug("Discarding " + className)
+	    debug("Discarding class " + className)
 	    decoder ! ClassDecoder.Discard
 	    statsTracker ! StatsTracker.DiscardedClass
 	    exit()
