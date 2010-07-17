@@ -13,10 +13,10 @@ class ClassCoordinator(
   import Actor._
 
   def act() {
-    decoder ! ClassDecoder.GetName
+    decoder ! ClassDecoder.GetProps
 
     react {
-      case ClassDecoder.Name(className) =>
+      case ClassDecoder.Props(ClassProps(className, _, _)) =>
 	debug("Decoded name of class " + className)
 	decider ! KeepClassDecider.DecideOnClass(className)
 	react {

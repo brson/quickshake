@@ -4,8 +4,8 @@ import actors.Actor
 import actors.Actor._
 
 object ClassDecoder {
-  case object GetName
-  case class Name(className: ClassName)
+  case object GetProps
+  case class Props(props: ClassProps)
   case object Discard
   case object FindDependencies
   case class Method(
@@ -25,8 +25,8 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
   
   def act() {
     react {
-      case GetName =>
-	getName()
+      case GetProps =>
+	getClassProps()
 	react {
 	  case Discard => exit()
 	  case FindDependencies =>
@@ -37,7 +37,7 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
     }
   }
 
-  private def getName() {
+  private def getClassProps() {
     import runtime.NonLocalReturnException
 
     val visitor = new EmptyVisitor {
@@ -49,7 +49,19 @@ class ClassDecoder(classData: Array[Byte]) extends Actor with Logging {
 	superName: String,
 	interfaces: Array[String]
       ) {
-	reply(Name(new ClassName(name)))
+	val sup =
+	  if (superName != null) new ClassName(name)
+	  else error("Visiting java.lang.Object?")
+	val inter = 
+	  if (interfaces != null ) {
+	    interfaces.toList map { new ClassName(_) }
+	  }
+	  else Nil
+
+	val props = new ClassProps(
+	  new ClassName(name), sup, inter
+	)
+	reply(Props(props))
 	throw new NonLocalReturnException((), ())
       }
     }
