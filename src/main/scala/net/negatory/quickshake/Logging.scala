@@ -26,9 +26,10 @@ trait Logger {
   def debug(msg: => String): Unit = trylog(Debug, msg)
   def info(msg: => String): Unit = trylog(Info, msg)
   def warning(msg: => String): Unit = trylog(Warning, msg)
-  def error(msg: => String): Unit = {
+  def error(msg: => String): Nothing = {
     trylog(Error, msg)
     Runtime.getRuntime().exit(-1)
+    throw new Exception
   }
 
   def trylog(level: LogLevel, msg: => String) {
