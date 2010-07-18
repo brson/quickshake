@@ -46,40 +46,48 @@ class ClassCoordinator(
 	  val props = MethodProps(className, methodName, classDeps, methodDeps)
 	  methodDecider ! KeepMethodDecider.DecideOnMethod(props)
 	case ClassDecoder.End =>
-	  // Get the list of methods to keep
-	  import collection.mutable.HashSet
-	  var methodsDecided = 0
-	  val methodsKept = new HashSet[String]
-	  loopWhile(methodsDecided < methods) {
-	    react {
-	      val f: PartialFunction[Any, Unit] = {
-		case KeepMethodDecider.KeptMethod(props) =>
-		  val MethodProps(_, methodName, classDeps, methodDeps) = props
-		  debug("Keeping method " + methodName)
-		  statsTracker ! StatsTracker.KeptMethod
-		  methodsKept += methodName
-		  classDeps foreach {
-		    classDecider ! KeepClassDecider.KeepClass(_)
-		  }
-		  methodDeps foreach {
-		    p =>
-		      val (cn, mn) = p
-		      methodDecider ! KeepMethodDecider.KeepMethod(cn, mn)
-		  }
-		case KeepMethodDecider.DiscardedMethod(props) =>
-		  val MethodProps(_, methodName, _, _) = props
-		  debug("Discarding method " + methodName)
-		  statsTracker ! StatsTracker.DiscardedMethod
-	      }
-
-	      f andThen { _ => methodsDecided += 1 }
-	    }
-	  } andThen {
-	    statsTracker ! StatsTracker.KeptClass
-	    dataWriter ! ClassDataWriter.AddClass(className, classData, methodsKept)
-	    exit()
-	}
+	  finishClass(className, classData, methods);
       }
+    }
+  }
+
+  private[this] def finishClass(
+    className: ClassName,
+    classData: Array[Byte],
+    methods: Int
+  ) {
+    // Get the list of methods to keep
+    import collection.mutable.HashSet
+    var methodsDecided = 0
+    val methodsKept = new HashSet[String]
+    loopWhile(methodsDecided < methods) {
+      react {
+	val f: PartialFunction[Any, Unit] = {
+	  case KeepMethodDecider.KeptMethod(props) =>
+	    val MethodProps(_, methodName, classDeps, methodDeps) = props
+	    debug("Keeping method " + methodName)
+	    statsTracker ! StatsTracker.KeptMethod
+	    methodsKept += methodName
+	    classDeps foreach {
+	      classDecider ! KeepClassDecider.KeepClass(_)
+	    }
+	    methodDeps foreach {
+	      p =>
+		val (cn, mn) = p
+		methodDecider ! KeepMethodDecider.KeepMethod(cn, mn)
+	    }
+	  case KeepMethodDecider.DiscardedMethod(props) =>
+	    val MethodProps(_, methodName, _, _) = props
+	    debug("Discarding method " + methodName)
+	    statsTracker ! StatsTracker.DiscardedMethod
+	}
+
+	f andThen { _ => methodsDecided += 1 }
+      }
+    } andThen {
+      statsTracker ! StatsTracker.KeptClass
+      dataWriter ! ClassDataWriter.AddClass(className, classData, methodsKept)
+      exit()
     }
   }
 
