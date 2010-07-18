@@ -5,13 +5,22 @@ import actors.Actor._
 
 object KeepClassDecider {
   case class KeepClass(className: ClassName)
-  case class KeepMethod(className: ClassName, methodName: String)
+
   case class DecideOnClass(className: ClassName)
   case object Kept
   case object Discarded
+
+  case object DrainWaiters
+  case object End
+}
+
+object KeepMethodDecider {
+  case class KeepMethod(className: ClassName, methodName: String)
+
   case class DecideOnMethod(props: MethodProps)
   case class KeptMethod(props: MethodProps)
   case class DiscardedMethod(props: MethodProps)
+
   case object DrainWaiters
   case object End
 }
@@ -21,6 +30,7 @@ class KeepClassDecider(
 ) extends Actor with Logging {
 
   import KeepClassDecider._
+  import KeepMethodDecider._
 
   private val internalKeepNamespaces = {
     keepNamespaces map { ClassName.internalize _ }
@@ -33,10 +43,12 @@ class KeepClassDecider(
 	case KeepMethod(className, methodName) => keepMethod(className, methodName)
 	case DecideOnClass(className) => decideOnClass(className)
 	case DecideOnMethod(props) => decideOnMethod(props)
-	case DrainWaiters => drainRequesters()
-	case End => 
+	case KeepClassDecider.DrainWaiters => drainRequesters()
+	case KeepMethodDecider.DrainWaiters => ()
+	case KeepClassDecider.End =>
 	  debug("Decider exiting")
 	  exit()
+	case KeepMethodDecider.End => ()
       }
     }
   }

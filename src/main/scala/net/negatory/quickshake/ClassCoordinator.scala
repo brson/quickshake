@@ -43,7 +43,7 @@ class ClassCoordinator(
 	case ClassDecoder.Method(methodName, classDeps, methodDeps) =>
 	  methods += 1
 	  val props = MethodProps(className, methodName, classDeps, methodDeps)
-	  decider ! KeepClassDecider.DecideOnMethod(props)
+	  decider ! KeepMethodDecider.DecideOnMethod(props)
 	case ClassDecoder.End =>
 	  // Get the list of methods to keep
 	  import collection.mutable.HashSet
@@ -52,7 +52,7 @@ class ClassCoordinator(
 	  loopWhile(methodsDecided < methods) {
 	    react {
 	      val f: PartialFunction[Any, Unit] = {
-		case KeepClassDecider.KeptMethod(props) =>
+		case KeepMethodDecider.KeptMethod(props) =>
 		  val MethodProps(_, methodName, classDeps, methodDeps) = props
 		  debug("Keeping method " + methodName)
 		  statsTracker ! StatsTracker.KeptMethod
@@ -63,9 +63,9 @@ class ClassCoordinator(
 		  methodDeps foreach {
 		    p =>
 		      val (cn, mn) = p
-		      decider ! KeepClassDecider.KeepMethod(cn, mn)
+		      decider ! KeepMethodDecider.KeepMethod(cn, mn)
 		  }
-		case KeepClassDecider.DiscardedMethod(props) =>
+		case KeepMethodDecider.DiscardedMethod(props) =>
 		  val MethodProps(_, methodName, _, _) = props
 		  debug("Discarding method " + methodName)
 		  statsTracker ! StatsTracker.DiscardedMethod
