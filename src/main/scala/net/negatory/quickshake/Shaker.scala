@@ -27,7 +27,10 @@ class Shaker(
   val terminator = shakeFactory.newTerminator()
   trait TerminationMixin extends shakeFactory.ShakeMixin with terminator.TerminationMixin
 
-  val decider = new KeepClassDecider(options.keepNamespaces) with TerminationMixin {
+  val classDecider = new KeepClassDecider(options.keepNamespaces) with TerminationMixin {
+    start()
+  }
+  val methodDecider = new KeepMethodDecider(options.keepNamespaces) with TerminationMixin {
     start()
   }
 
@@ -41,7 +44,8 @@ class Shaker(
   ) = new ClassCoordinator(
     classData,
     shakeFactory.newDecoder(classData),
-    decider,
+    classDecider,
+    methodDecider,
     dataWriter,
     statsTracker
   ) with TerminationMixin {
@@ -73,13 +77,15 @@ class Shaker(
     while (continue) {
       terminator !? Terminator.AwaitAllPassive match {
 	case Terminator.AllPassive(remaining) =>
-	  if (remaining > 1) {
+	  if (remaining > 2) {
 	    logger.debug("Draining waiters")
-	    decider ! KeepClassDecider.DrainWaiters
+	    methodDecider ! KeepMethodDecider.DrainWaiters
+	    classDecider ! KeepClassDecider.DrainWaiters
 	  } else {
-	    // This little guy is the only one left alive
+	    // These little guys is the only one left alive
 	    // but he still can't escape the Terminator
-	    decider ! KeepClassDecider.End
+	    methodDecider ! KeepMethodDecider.End
+	    classDecider ! KeepClassDecider.End
 	  }
 	case Terminator.AllDone => continue = false
       }

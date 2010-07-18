@@ -5,7 +5,8 @@ import actors.Actor
 class ClassCoordinator(
   classData: Array[Byte],
   decoder: ClassDecoder,
-  decider: KeepClassDecider,
+  classDecider: KeepClassDecider,
+  methodDecider: KeepMethodDecider,
   dataWriter: ClassDataWriter,
   statsTracker: StatsTracker
 ) extends Actor with Logging {
@@ -18,7 +19,7 @@ class ClassCoordinator(
     react {
       case ClassDecoder.Props(classProps @ ClassProps(className, _, _)) =>
 	debug("Decoded name of class " + className)
-	decider ! KeepClassDecider.DecideOnClass(className)
+	classDecider ! KeepClassDecider.DecideOnClass(className)
 	react {
 	  case KeepClassDecider.Kept =>
 	    keepClass(classProps)
@@ -39,11 +40,11 @@ class ClassCoordinator(
     loop {
       react {
 	case ClassDecoder.ClassDependency(depName) =>
-	  decider ! KeepClassDecider.KeepClass(depName)
+	  classDecider ! KeepClassDecider.KeepClass(depName)
 	case ClassDecoder.Method(methodName, classDeps, methodDeps) =>
 	  methods += 1
 	  val props = MethodProps(className, methodName, classDeps, methodDeps)
-	  decider ! KeepMethodDecider.DecideOnMethod(props)
+	  methodDecider ! KeepMethodDecider.DecideOnMethod(props)
 	case ClassDecoder.End =>
 	  // Get the list of methods to keep
 	  import collection.mutable.HashSet
@@ -58,12 +59,12 @@ class ClassCoordinator(
 		  statsTracker ! StatsTracker.KeptMethod
 		  methodsKept += methodName
 		  classDeps foreach {
-		    decider ! KeepClassDecider.KeepClass(_)
+		    classDecider ! KeepClassDecider.KeepClass(_)
 		  }
 		  methodDeps foreach {
 		    p =>
 		      val (cn, mn) = p
-		      decider ! KeepMethodDecider.KeepMethod(cn, mn)
+		      methodDecider ! KeepMethodDecider.KeepMethod(cn, mn)
 		  }
 		case KeepMethodDecider.DiscardedMethod(props) =>
 		  val MethodProps(_, methodName, _, _) = props

@@ -14,42 +14,20 @@ object KeepClassDecider {
   case object End
 }
 
-object KeepMethodDecider {
-  case class KeepMethod(className: ClassName, methodName: String)
-
-  case class DecideOnMethod(props: MethodProps)
-  case class KeptMethod(props: MethodProps)
-  case class DiscardedMethod(props: MethodProps)
-
-  case object DrainWaiters
-  case object End
-}
-
 class KeepClassDecider(
-  keepNamespaces: List[String]
-) extends Actor with Logging {
+  val keepNamespaces: List[String]
+) extends Actor with Decider with Logging {
 
   import KeepClassDecider._
-  import KeepMethodDecider._
 
-  private val internalKeepNamespaces = {
-    keepNamespaces map { ClassName.internalize _ }
-  }
-
-  def act() {
-    loop {
-      react {
-	case KeepClass(className) => keepClass(className)
-	case KeepMethod(className, methodName) => keepMethod(className, methodName)
-	case DecideOnClass(className) => decideOnClass(className)
-	case DecideOnMethod(props) => decideOnMethod(props)
-	case KeepClassDecider.DrainWaiters => drainRequesters()
-	case KeepMethodDecider.DrainWaiters => ()
-	case KeepClassDecider.End =>
-	  debug("Decider exiting")
-	  exit()
-	case KeepMethodDecider.End => ()
-      }
+  def act(): Unit = loop {
+    react {
+      case KeepClass(className) => keepClass(className)
+      case DecideOnClass(className) => decideOnClass(className)
+      case KeepClassDecider.DrainWaiters => drainRequesters()
+      case KeepClassDecider.End =>
+	debug("Class decider exiting")
+	exit()
     }
   }
 
@@ -58,9 +36,6 @@ class KeepClassDecider(
 
   private val keepSet = new HashSet[ClassName]
   private val requesterMap = new HashMap[ClassName, OutputChannel[Any]]
-  private val methodSet = new HashSet[String]
-  private val methodRequesterMap =
-    new HashMap[String, List[(MethodProps, OutputChannel[Any])]]
   
   private def keepClass(className: ClassName) {
 
@@ -71,26 +46,6 @@ class KeepClassDecider(
       requester ! Kept
       requesterMap -= className
     }
-  }
-
-  private def keepMethod(className: ClassName, methodName: String) {
-
-    methodSet += methodName
-
-    if (methodRequesterMap contains methodName) {
-      val requesterList = methodRequesterMap(methodName)
-      requesterList foreach {
-	item =>
-	  val (props, requester) = item
-	  requester ! KeptMethod(props)
-      }
-      methodRequesterMap -= methodName
-    }
-  }
-
-  private def isInKeptNs(className: ClassName) = internalKeepNamespaces.foldLeft (false) {
-    (res, ns) =>
-      res || (className isInNamespace ns)
   }
 
   private def decideOnClass(className: ClassName) {
@@ -112,32 +67,8 @@ class KeepClassDecider(
     }
   }
 
-  private def decideOnMethod(props: MethodProps) {
-    val MethodProps(className, methodName, _, _) = props
-
-    debug("Deciding whether to keep method " + methodName)
-    if (isInKeptNs(className)) {
-      sender ! KeptMethod(props)
-    } else if (methodSet contains methodName) {
-      sender ! KeptMethod(props)
-    } else {
-      val currentList = if (methodRequesterMap contains methodName) methodRequesterMap(methodName)
-			else Nil
-      methodRequesterMap put (methodName, (props, sender) :: currentList)
-      
-    }
-  }
-
   private def drainRequesters() {
     debug("Discarding remaining class keep decisions")
-
-    for (
-      (_, requests) <- methodRequesterMap;
-      (props, requester) <- requests
-    ) {
-      requester ! DiscardedMethod(props)
-    }
-    methodRequesterMap.clear()
 
     for ((_, requester) <- requesterMap) {
       requester ! Discarded
@@ -146,3 +77,5 @@ class KeepClassDecider(
   }
 
 }
+
+
