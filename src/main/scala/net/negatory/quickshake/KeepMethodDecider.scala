@@ -35,21 +35,21 @@ class KeepMethodDecider (
   import actors.OutputChannel
 
   private val methodSet = new HashSet[(ClassName, String)]
-  private val methodRequesterMap =
+  private val requesterMap =
     new HashMap[(ClassName, String), List[(MethodProps, OutputChannel[Any])]]
 
   private def keepMethod(className: ClassName, methodName: String) {
 
     methodSet += Pair(className, methodName)
 
-    if (methodRequesterMap contains (className, methodName)) {
-      val requesterList = methodRequesterMap((className, methodName))
+    if (requesterMap contains (className, methodName)) {
+      val requesterList = requesterMap((className, methodName))
       requesterList foreach {
 	item =>
 	  val (props, requester) = item
 	  requester ! KeptMethod(props)
       }
-      methodRequesterMap -= Pair(className, methodName)
+      requesterMap -= Pair(className, methodName)
     }
   }
 
@@ -62,9 +62,9 @@ class KeepMethodDecider (
     } else if (methodSet contains (className, methodName)) {
       sender ! KeptMethod(props)
     } else {
-      val currentList = if (methodRequesterMap contains (className, methodName)) methodRequesterMap((className, methodName))
+      val currentList = if (requesterMap contains (className, methodName)) requesterMap((className, methodName))
 			else Nil
-      methodRequesterMap put ((className, methodName), (props, sender) :: currentList)
+      requesterMap put ((className, methodName), (props, sender) :: currentList)
       
     }
   }
@@ -73,12 +73,12 @@ class KeepMethodDecider (
     debug("Discarding remaining method keep decisions")
 
     for (
-      (_, requests) <- methodRequesterMap;
+      (_, requests) <- requesterMap;
       (props, requester) <- requests
     ) {
       requester ! DiscardedMethod(props)
     }
-    methodRequesterMap.clear()
+    requesterMap.clear()
   }
 
 }
