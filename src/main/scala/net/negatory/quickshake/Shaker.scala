@@ -91,7 +91,7 @@ class Shaker(
       }
     }
   
-    statsTracker ! StatsTracker.LogStats
+    statsTracker !? StatsTracker.LogStats
 
     logger.debug("Cleaning up")
     statsTracker ! StatsTracker.End

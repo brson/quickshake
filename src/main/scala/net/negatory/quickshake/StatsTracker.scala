@@ -32,6 +32,7 @@ class StatsTracker extends Actor with Logging {
 	  info("Discarded " + discardedClasses + " classes")
 	  info("Kept " + keptMethods + " methods")
 	  info("Discarded " + discardedMethods + " methods")
+	  reply('done)
 	case End => exit()
       }
     }
