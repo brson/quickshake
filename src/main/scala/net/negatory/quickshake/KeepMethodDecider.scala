@@ -34,13 +34,13 @@ class KeepMethodDecider (
   import collection.mutable.{HashSet, HashMap}
   import actors.OutputChannel
 
-  private val methodSet = new HashSet[(ClassName, String)]
+  private val keepSet = new HashSet[(ClassName, String)]
   private val requesterMap =
     new HashMap[(ClassName, String), List[(MethodProps, OutputChannel[Any])]]
 
   private def keepMethod(className: ClassName, methodName: String) {
 
-    methodSet += Pair(className, methodName)
+    keepSet += Pair(className, methodName)
 
     if (requesterMap contains (className, methodName)) {
       val requesterList = requesterMap((className, methodName))
@@ -59,7 +59,7 @@ class KeepMethodDecider (
     debug("Deciding whether to keep method " + methodName)
     if (isInKeptNs(className)) {
       sender ! KeptMethod(props)
-    } else if (methodSet contains (className, methodName)) {
+    } else if (keepSet contains (className, methodName)) {
       sender ! KeptMethod(props)
     } else {
       val currentList = if (requesterMap contains (className, methodName)) requesterMap((className, methodName))
