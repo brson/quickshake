@@ -82,8 +82,8 @@ class Shaker(
 	    methodDecider ! KeepMethodDecider.DrainWaiters
 	    classDecider ! KeepClassDecider.DrainWaiters
 	  } else {
-	    // These little guys is the only one left alive
-	    // but he still can't escape the Terminator
+	    // These little guys are the only ones left alive
+	    // but they still can't escape the Terminator
 	    methodDecider ! KeepMethodDecider.End
 	    classDecider ! KeepClassDecider.End
 	  }
