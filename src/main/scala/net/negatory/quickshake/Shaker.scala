@@ -96,8 +96,6 @@ class Shaker(
     logger.debug("Cleaning up")
     statsTracker ! StatsTracker.End
     dataWriter !? ClassDataWriter.End
-    // TODO: Need to stop gracefully, but fast
-    Runtime.getRuntime.exit(0)
     terminator ! Terminator.End
   }
 }
