@@ -11,6 +11,7 @@ object KeepMethodDecider {
   case class DiscardedMethod(props: MethodProps)
 
   case object DrainWaiters
+  case class Drained(count: Int)
   case object End
 }
 
@@ -78,7 +79,9 @@ class KeepMethodDecider (
     ) {
       requester ! DiscardedMethod(props)
     }
+    val count = requesterMap.size
     requesterMap.clear()
+    reply(Drained(count))
   }
 
 }

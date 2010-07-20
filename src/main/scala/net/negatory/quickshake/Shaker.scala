@@ -78,9 +78,13 @@ class Shaker(
       terminator !? Terminator.AwaitAllPassive match {
 	case Terminator.AllPassive(remaining) =>
 	  if (remaining > 2) {
-	    logger.debug("Draining waiters")
-	    methodDecider ! KeepMethodDecider.DrainWaiters
-	    classDecider ! KeepClassDecider.DrainWaiters
+	    logger.debug("Draining method waiters")
+	    methodDecider !? KeepMethodDecider.DrainWaiters match {
+	      case KeepMethodDecider.Drained(count) => if (count == 0) {
+		logger.debug("Draining class waiters")
+		classDecider ! KeepClassDecider.DrainWaiters
+	      }
+	    }
 	  } else {
 	    // These little guys are the only ones left alive
 	    // but they still can't escape the Terminator
